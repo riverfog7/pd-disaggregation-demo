@@ -130,11 +130,12 @@ uv run --extra mac pytest -q
 
 # Opt-in real hardware, separate native port; also tests rejection and recovery.
 uv run python scripts/validate_handoff.py --engine-port 8181
+uv run python scripts/validate_handoff.py --prompt-tokens 8192 --engine-port 8181
 uv run python scripts/validate_handoff.py --engine-port 8181 \
   --worker-url http://127.0.0.1:8090 --output .pd-demo/cuda-metal-acceptance.json
 ```
 
-[Metal acceptance evidence](reports/metal-acceptance.json) records actual F16 and Q8 same-prefix continuations and artifact rejection/recovery, rather than mocked timings. Unit/integration tests additionally use fake native/worker servers for failures, cancellation and deployment command validation. Cross-machine and browser verification results are recorded separately as they complete.
+[Metal acceptance evidence](reports/metal-acceptance.json), [4B checks](reports/metal-4b-acceptance.json), and [8k-token checks](reports/metal-8k-acceptance.json) record actual F16 and Q8 same-prefix continuations and artifact rejection/recovery. The hardware script fails on inconsistent same-backend continuations; CUDA/Metal numerical differences remain recorded observations. Unit/integration tests additionally use fake native/worker servers for failures, cancellation and deployment command validation. Cross-machine and browser verification results are recorded separately as they complete.
 
 Performance acceptance needs the direct gigabit LAN route. The existing Internet SSH route measured around 2.2 MB/s during planning and is useful for functionality checks, not for claiming the intended LAN speedup.
 

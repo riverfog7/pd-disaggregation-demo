@@ -36,7 +36,8 @@ processes are stopped. Failed first deployments stop only their own worker.
 The image pins llama.cpp `23b0202a189c44a54625aadcb37a946dd1d6278d`, CUDA 12.8.1,
 and SM75. The build has one CUDA compilation job by default (maximum two). Only
 llama-server, native libraries and Python 3.13 package dependencies enter the
-runtime image; Gradio/Plotly extras and developer tools are omitted.
+runtime image; Gradio and developer tools are omitted. Plotly remains a shared
+dependency for the package's standalone benchmark report exports.
 
 Compose uses CDI `nvidia.com/gpu=all` and publishes only host loopback port 8090.
 Runtime RAM is capped from measured host availability minus a 2GiB reserve,
