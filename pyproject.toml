@@ -9,15 +9,26 @@ module-root = "src"
 [project]
 name = "pd-disaggregation-demo"
 version = "0.1.0"
-description = "Add your description here"
+description = "Benchmark CUDA prefill and Apple Metal decode across two machines"
 readme = "README.md"
-requires-python = ">=3.11,<=3.14"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "dotenv>=0.9.9",
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "huggingface-hub>=0.34",
+    "psutil>=7.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "typer>=0.20.0",
+    "uvicorn>=0.35",
+    "nvidia-ml-py>=12.570; sys_platform == 'linux'",
 ]
+
+[project.optional-dependencies]
+mac = ["gradio>=5.49", "plotly>=6.0"]
+
+[project.scripts]
+pd-demo = "pd_disaggregation_demo.cli:main"
 
 [dependency-groups]
 dev = [
@@ -26,4 +37,17 @@ dev = [
     "pre-commit>=4.5.1",
     "ruff>=0.15.6",
     "ty>=0.0.26",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.1",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
