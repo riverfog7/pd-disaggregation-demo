@@ -139,6 +139,8 @@ uv run python scripts/validate_handoff.py --engine-port 8181 \
 
 Performance acceptance needs the direct gigabit LAN route. The existing Internet SSH route measured around 2.2 MB/s during planning and is useful for functionality checks, not for claiming the intended LAN speedup.
 
+The [verification status](reports/verification-status.json) distinguishes executed checks from pending ones. As of 2026-10-11, 123 automated tests and native Metal checks pass. The initial Docker build compiled CUDA but failed at executable linking; the pinned upstream linker flag and persistent compilation cache are now included. The rebuild was refused with 2.57 GiB remote RAM available versus 3.00 GiB required. CUDA-to-Metal, successful paired browser runs, and live rollback are still unverified. Free remote RAM before retrying deployment; no split speedup has been established.
+
 ## Layout and source workflow
 
 One uv project contains `config/`, `models.py`, `catalog.py`, `runtime/`, `client/`, `backend/`, `deployment/`, `benchmarks/`, `ui/`, `api.py` and `cli.py` under `src/pd_disaggregation_demo`. The Linux API is a package module; there is no copied `server/` project. FastAPI, HTTPX, Typer, Gradio, Plotly, Hugging Face Hub, psutil and NVML provide the orchestration pieces.

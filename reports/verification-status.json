@@ -1,0 +1,70 @@
+{
+  "created_at": "2026-10-11T07:44:51.747128+00:00",
+  "tested_code_revision": "1f5ce15e61ec3fac9a967c43b6c3c0de1b924380",
+  "branch": "codex/pd-demo",
+  "overall": "remote_live_validation_blocked_by_host_ram",
+  "automated": {
+    "pytest_passed": 123,
+    "ruff_check": "passed",
+    "ruff_format_check": "passed",
+    "ty_src": "passed"
+  },
+  "native_metal": {
+    "models": [
+      "qwen3.5-0.8b",
+      "qwen3.5-4b"
+    ],
+    "cache_types": [
+      "f16",
+      "q8_0"
+    ],
+    "same_prefix_continuation": "passed",
+    "long_context_prompt_tokens": 8192,
+    "long_context_cache_n": 8191,
+    "long_context_prompt_n": 1,
+    "rejection_and_recovery": [
+      "corrupt",
+      "truncated",
+      "missing",
+      "expired",
+      "incompatible"
+    ],
+    "evidence": [
+      "metal-acceptance.json",
+      "metal-4b-acceptance.json",
+      "metal-8k-acceptance.json"
+    ]
+  },
+  "mac_live_checks": [
+    "CLI start/status/stop",
+    "Python native runtime",
+    "HTTP generation and text-only chat streaming",
+    "CLI reuse of running HTTP API",
+    "local prefill and separate decode",
+    "HTTP cancellation and disconnected-stream reuse",
+    "occupied native port refusal",
+    "low-memory profile refusal with previous profile restored",
+    "native worker process restart",
+    "browser dashboard rendering and local chat",
+    "failed split benchmark recorded without local fallback"
+  ],
+  "linux": {
+    "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+    "cuda_build": "CUDA compilation completed; final executable link failed in initial image. Upstream linker flag and persistent build cache fixes are committed but rebuild has not run.",
+    "source_transport": "Git push/fetch and exact-SHA deployment worktree verified",
+    "remote_source_revision": "1f5ce15e61ec3fac9a967c43b6c3c0de1b924380",
+    "build_ram_required_bytes": 3221225472,
+    "host_ram_available_bytes": 2758336512,
+    "worker_08b_ram_required_including_reserve_bytes": 3324542976,
+    "unrelated_workloads_stopped": false
+  },
+  "pending_live_checks": [
+    "Docker worker launch and GPU inference",
+    "CUDA-to-Metal F16 and Q8 state handoff",
+    "interrupted network state transfer and recovery",
+    "successful paired browser and CLI benchmarks",
+    "live deployment rollback",
+    "direct gigabit LAN measurement and paired TTFT confidence interval"
+  ],
+  "performance_claim": "No split TTFT speedup established; intended performance acceptance requires supplied LAN route."
+}
