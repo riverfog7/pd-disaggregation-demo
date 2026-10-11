@@ -14,6 +14,7 @@ from pd_disaggregation_demo.models import (
     ArtifactManifest,
     DecodeRequest,
     GenerationRequest,
+    PrefillRequest,
     RuntimeFingerprint,
     RuntimeProfile,
 )
@@ -759,3 +760,116 @@ async def test_pipeline_cancel_during_remote_configuration_cancels_worker(tmp_pa
     assert not pipeline._remote_active
     assert not pipeline._lock.locked()
     await pipeline.close()
+
+
+@pytest.fixture
+async def remote_transfer(tmp_path):
+    from pd_disaggregation_demo.artifacts import CHUNK_SIZE
+
+    pipeline = Pipeline(Settings(work_dir=tmp_path))
+    pipeline.runtime.fingerprint = fingerprint()
+    await pipeline.remote._client.aclose()
+    chunk = b"x" * CHUNK_SIZE
+    data = chunk * 2
+    manifest = ArtifactManifest(
+        model_id="qwen3.5-4b",
+        fingerprint=fingerprint(),
+        token_ids=[1, 2],
+        prefix_tokens=1,
+        source_backend="cuda",
+        state_bytes=len(data),
+        state_sha256=hashlib.sha256(data).hexdigest(),
+    )
+    behavior = {"failure": None, "delete_failure": False, "calls": []}
+    started = asyncio.Event()
+
+    class StateStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield chunk
+            if behavior["failure"] == "cancel":
+                started.set()
+                await asyncio.Event().wait()
+            if behavior["failure"] == "read":
+                raise httpx.ReadError("original transfer interrupted")
+            yield chunk
+
+    def handler(request):
+        behavior["calls"].append((request.method, request.url.path))
+        if request.url.path == "/health":
+            return httpx.Response(
+                200, json={"status": "ready", "profile": pipeline.profile.model_dump()}
+            )
+        if request.url.path == "/prefill":
+            return httpx.Response(200, json=manifest.model_dump(mode="json"))
+        if request.url.path.endswith("/state"):
+            return httpx.Response(200, stream=StateStream())
+        if request.method == "DELETE" and behavior["delete_failure"]:
+            return httpx.Response(409, json={"detail": "Artifact is in use"})
+        return httpx.Response(200, json={})
+
+    pipeline.remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://worker"
+    )
+    yield pipeline, manifest, behavior, started, data
+    await pipeline.close()
+
+
+@pytest.mark.parametrize("failure", ["read", "cancel"])
+async def test_failed_transfer_cleanup_preserves_failure_and_releases_pipeline(
+    remote_transfer, failure
+):
+    from pd_disaggregation_demo.artifacts import delete_artifact
+
+    pipeline, manifest, behavior, started, data = remote_transfer
+    behavior["failure"] = failure
+    behavior["delete_failure"] = True
+    request = PrefillRequest(token_ids=[1, 2], backend="remote")
+    if failure == "cancel":
+        task = asyncio.create_task(pipeline.prefill(request))
+        await started.wait()
+        await pipeline.cancel()
+        assert task.cancelled()
+    else:
+        with pytest.raises(RuntimeError, match="original transfer interrupted") as caught:
+            await pipeline.prefill(request)
+        assert any("Remote artifact cleanup failed" in note for note in caught.value.__notes__)
+    assert ("POST", "/cancel") in behavior["calls"]
+    assert not (pipeline.settings.artifacts_dir / manifest.artifact_id).exists()
+    assert not pipeline._lock.locked()
+    assert not pipeline._remote_active
+    behavior["failure"] = None
+    behavior["delete_failure"] = False
+    recovered = await pipeline.prefill(request)
+    assert recovered.state_path.read_bytes() == data
+    delete_artifact(recovered)
+
+
+async def test_successful_transfer_failed_remote_delete_does_not_leak_local_state(remote_transfer):
+    pipeline, manifest, behavior, _, _ = remote_transfer
+    behavior["delete_failure"] = True
+    with pytest.raises(httpx.HTTPStatusError, match="409"):
+        await pipeline.prefill(PrefillRequest(token_ids=[1, 2], backend="remote"))
+    assert not (pipeline.settings.artifacts_dir / manifest.artifact_id).exists()
+    assert not pipeline._lock.locked()
+    assert not pipeline._remote_active
+
+
+async def test_remote_cleanup_uses_short_control_timeouts(tmp_path):
+    remote = RemoteWorker(Settings(work_dir=tmp_path, request_timeout=1200))
+    await remote._client.aclose()
+    calls = []
+
+    def handler(request):
+        calls.append((request.url.path, request.extensions["timeout"]["read"]))
+        return httpx.Response(200, json={})
+
+    remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://worker"
+    )
+    try:
+        await remote.cancel()
+        await remote.delete("a" * 32)
+        await remote._json("POST", "/prefill", {})
+        assert calls == [("/cancel", 10), (f"/artifacts/{'a' * 32}", 10), ("/prefill", 1200)]
+    finally:
+        await remote.close()

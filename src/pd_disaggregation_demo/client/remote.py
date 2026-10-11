@@ -34,9 +34,16 @@ class RemoteWorker:
             "reachable; if using an SSH tunnel, verify its remote destination and worker port."
         )
 
-    async def _json(self, method: str, path: str, payload: dict | None = None) -> dict:
+    async def _json(
+        self, method: str, path: str, payload: dict | None = None, *, timeout: float | None = None
+    ) -> dict:
         try:
-            response = await self._client.request(method, path, json=payload)
+            response = await self._client.request(
+                method,
+                path,
+                json=payload,
+                timeout=self.settings.request_timeout if timeout is None else timeout,
+            )
         except httpx.TransportError as error:
             raise self._transport_error(error, f"{method} {path}") from error
         if response.status_code == 422:
@@ -72,10 +79,12 @@ class RemoteWorker:
         return desired
 
     async def cancel(self) -> None:
-        await self._json("POST", "/cancel", {})
+        await self._json("POST", "/cancel", {}, timeout=min(10, self.settings.request_timeout))
 
     async def delete(self, artifact_id: str) -> None:
-        await self._json("DELETE", f"/artifacts/{artifact_id}")
+        await self._json(
+            "DELETE", f"/artifacts/{artifact_id}", timeout=min(10, self.settings.request_timeout)
+        )
 
     async def prefill(self, token_ids: list[int]) -> ArtifactManifest:
         result = await self._json("POST", "/prefill", {"token_ids": token_ids, "backend": "remote"})

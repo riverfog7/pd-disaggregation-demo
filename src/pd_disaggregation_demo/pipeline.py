@@ -94,20 +94,33 @@ class Pipeline:
 
     async def _remote_prefill(self, tokens: list[int]) -> tuple[PrefillArtifact, float]:
         manifest = None
+        artifact = None
         self._remote_active = True
         try:
             await self.remote.configure_matching(self.profile)
             manifest = await self.remote.prefill(tokens)
             artifact, transfer_ms = await self.remote.download(manifest, self.fingerprint)
-            return artifact, transfer_ms
-        except BaseException:
+        except BaseException as error:
             with contextlib.suppress(Exception):
                 await self.remote.cancel()
+            if manifest is not None:
+                try:
+                    await self.remote.delete(manifest.artifact_id)
+                except Exception as cleanup_error:
+                    # An unavailable worker or a stream still closing must not turn
+                    # cancellation into an operational error or hide transfer failure.
+                    error.add_note(f"Remote artifact cleanup failed: {cleanup_error}")
             raise
+        else:
+            try:
+                await self.remote.delete(manifest.artifact_id)
+            except BaseException:
+                # Until remote cleanup succeeds, the caller does not own this artifact.
+                await asyncio.to_thread(delete_artifact, artifact)
+                raise
+            return artifact, transfer_ms
         finally:
             self._remote_active = False
-            if manifest is not None:
-                await self.remote.delete(manifest.artifact_id)
 
     async def prefill(self, request: PrefillRequest) -> PrefillArtifact:
         async with self._request():
