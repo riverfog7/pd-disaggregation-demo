@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import csv
 import json
+import re
 import time
 from pathlib import Path
 
@@ -344,6 +345,41 @@ async def test_ui_async_callback_outputs_and_gradio6_history(tmp_path):
     assert "256 prompt tokens · pair 1" in updates[-1][11]
     assert "Native decode · engine timing (not additive)" in updates[-1][11]
     assert updates[-1][11] in Path(updates[-1][9][-1]).read_text()
+
+
+async def test_history_downloads_use_stable_api_routes_under_demo_mount(tmp_path):
+    gr = pytest.importorskip("gradio")
+    import httpx
+
+    from pd_disaggregation_demo.api import create_app
+    from pd_disaggregation_demo.ui.app import build_ui
+
+    pipeline = FakePipeline()
+    runtime_settings = settings(tmp_path)
+    report = await collect_benchmark(
+        pipeline,
+        BenchmarkConfig(prompt_sizes=[256], repeats=1, label="<saved run>", bootstrap_samples=100),
+        runtime_settings,
+    )
+    demo = build_ui(pipeline, runtime_settings)
+    compare = next(fn for fn in demo.fns.values() if fn.name == "compare")
+    _, markup = compare.fn([report.run_id])
+    assert "&lt;saved run&gt;" in markup
+    urls = re.findall(r'href="([^"]+)"', markup)
+    assert urls == [
+        f"/reports/{report.run_id}/{extension}" for extension in ("json", "csv", "html")
+    ]
+    assert "gradio_api/file" not in markup
+    api = create_app(runtime_settings, pipeline=pipeline, with_ui=False)
+    api = gr.mount_gradio_app(api, demo, path="/demo")
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=api), base_url="http://test"
+    ) as client:
+        assert (await client.get("/demo/config")).status_code == 200
+        for url, extension in zip(urls, ("json", "csv", "html"), strict=True):
+            response = await client.get(url)
+            assert response.status_code == 200
+            assert response.content == Path(report.exports[extension]).read_bytes()
 
 
 async def test_ui_closing_callback_saves_cancelled_report_and_releases_session(tmp_path):

@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import html
 import json
 
 import gradio as gr
@@ -199,7 +200,19 @@ def build_ui(pipeline, settings) -> gr.Blocks:
     def compare(run_ids):
         selected = set(run_ids or [])
         reports = [r for r in list_reports(settings.reports_dir) if r.run_id in selected]
-        return curves(reports), [path for r in reports for path in r.exports.values()]
+        links = "".join(
+            f'<li><a href="/reports/{report.run_id}/{extension}" download>'
+            f"{html.escape(report.config.label or report.run_id[:8])} · {extension.upper()}"
+            "</a></li>"
+            for report in reports
+            for extension in ("json", "csv", "html")
+            if extension in report.exports
+        )
+        return curves(reports), (
+            f"<p>Download selected reports:</p><ul>{links}</ul>"
+            if links
+            else "<p>Select saved runs to download their reports.</p>"
+        )
 
     async def chat(prompt, history, mode, model, cache, context, batch, ubatch, output):
         async with pipeline.session():
@@ -338,7 +351,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 refresh_button = gr.Button("Refresh history")
                 compare_button = gr.Button("Compare selected runs")
             history_plot = gr.Plot(label="Saved run comparison")
-            history_downloads = gr.File(file_count="multiple", label="Selected report exports")
+            history_downloads = gr.HTML("<p>Select saved runs to download their reports.</p>")
         with gr.Tab("Chat"):
             gr.Markdown(
                 "Chat uses the same model configuration and single-request runtime as the "
