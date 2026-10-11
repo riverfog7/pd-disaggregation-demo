@@ -1,3 +1,5 @@
+import ast
+import re
 import subprocess
 
 import pytest
@@ -32,6 +34,8 @@ def test_deploy_git_only_transaction_and_shell_syntax(monkeypatch, tmp_path):
         scripts.append(script)
         check = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True)
         assert check.returncode == 0, check.stderr
+        for marker, code in re.findall(r"<<'(PY[A-Z]+)'\n(.*?)\n\1", script, re.S):
+            ast.parse(code, filename=marker)
         return '{"status":"ready","git_revision":"' + sha + '"}\n'
 
     monkeypatch.setattr(operations, "_ssh", ssh)
@@ -93,6 +97,7 @@ def test_local_builder_is_capped_and_stopped_on_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(
         operations.subprocess, "run", lambda *a, **kw: type("Result", (), {"returncode": 1})()
     )
+    (tmp_path / "builder-name").write_text("pd-demo-build\n")
     calls = []
 
     def run(args, **kwargs):
@@ -135,3 +140,25 @@ def test_streaming_diagnostics_keeps_json_stdout_clean(capfd):
     assert output.strip() == '{"ok":true}'
     assert captured.out == ""
     assert captured.err.strip() == "build phase 1"
+
+
+def test_builder_cache_identity_persists_and_adopts_only_owned_cache(monkeypatch, tmp_path):
+    name = "pd-demo-" + "b" * 40
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return "default\nother-user\n" + name + "\n"
+
+    monkeypatch.setattr(operations, "_run", run)
+    assert operations._owned_builder(tmp_path) == name
+    assert operations._owned_builder(tmp_path) == name
+    assert len(calls) == 1
+    (tmp_path / "builder-name").write_text("other-user")
+    with pytest.raises(ValueError, match="owned"):
+        operations._owned_builder(tmp_path)
+
+
+def test_fresh_builder_uses_stable_project_identity(monkeypatch, tmp_path):
+    monkeypatch.setattr(operations, "_run", lambda *a, **kw: "default\nother-user\n")
+    assert operations._owned_builder(tmp_path) == "pd-demo-build"

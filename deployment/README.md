@@ -43,11 +43,15 @@ Runtime RAM is capped from measured host availability minus a 2GiB reserve,
 with memory+swap equal to memory (no container swap). Deployment refuses build
 headroom below 1GiB above that reserve and disk below 28GiB. The engine admission
 check separately enforces host, cgroup, GPU and model/state/compute budgets.
-A dedicated SHA-scoped `docker-container` BuildKit builder also has a hard RAM
+A dedicated persistent `docker-container` BuildKit builder also has a hard RAM
 cap of `min(host_available - 2GiB, 2GiB)`, equal memory+swap limit, two CPU quota,
 and `[worker.oci] max-parallelism=1`. Compose uses that explicit builder; the
 user default builder is not changed. Builder registration is refreshed with
-`--keep-state` to update limits while retaining its own cache. The builder stops
+`--keep-state` to update limits while retaining its own cache. The builder name
+is saved in `.deploy/builder-name` (local serve uses its work directory), reused
+across code revisions, and defaults to `pd-demo-build` on a fresh host. Existing
+demo SHA builders are adopted under their current name to preserve their state
+volume; unrelated builders are excluded. The builder stops
 after each build, including failures, before starting the worker. A compilation
 OOM fails only the constrained builder and leaves the prior worker serving.
 [Docker driver limits](https://docs.docker.com/build/builders/drivers/docker-container/)

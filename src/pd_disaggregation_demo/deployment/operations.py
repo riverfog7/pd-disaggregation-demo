@@ -246,7 +246,31 @@ compose() {{
 }}
 # Give only this demo's builder a hard RAM limit and no swap, without changing
 # the user's default builder. Serialize all BuildKit vertices, not just nvcc.
-builder="pd-demo-$revision"
+builder=$(python3 - "$root/builder-name" "$root/current" <<'PYBUILDER'
+import os, pathlib, re, subprocess, sys
+record = pathlib.Path(sys.argv[1])
+pattern = re.compile(r'^pd-demo-(?:build|[0-9a-f]{{40}})$')
+if record.is_file():
+    name = record.read_text().strip()
+else:
+    name = 'pd-demo-build'
+    preferred = 'pd-demo-'+pathlib.Path(os.readlink(sys.argv[2])).name \\
+        if pathlib.Path(sys.argv[2]).is_symlink() else ''
+    result = subprocess.run(['docker','buildx','ls','--format','{{{{.Name}}}}'],
+                            capture_output=True, text=True, check=True)
+    existing = [n.strip().rstrip('*') for n in result.stdout.splitlines()]
+    owned = sorted(n for n in existing if pattern.fullmatch(n))
+    if preferred in owned:
+        name = preferred
+    elif name not in owned and owned:
+        # Adopt the already-built demo cache without renaming its state volume.
+        name = owned[0]
+    record.write_text(name+'\\n')
+if not pattern.fullmatch(name):
+    raise SystemExit('Invalid owned demo builder name')
+print(name)
+PYBUILDER
+)
 cat > "$root/buildkitd.toml" <<'BUILDKIT'
 [worker.oci]
   max-parallelism = 1
@@ -391,6 +415,24 @@ def _local_compose(settings: Settings, profile: RuntimeProfile | None = None) ->
     ]
 
 
+def _owned_builder(work_dir: Path) -> str:
+    """Persist one demo-owned cache identity across revisions and cap refreshes."""
+    record = work_dir / "builder-name"
+    pattern = re.compile(r"^pd-demo-(?:build|[0-9a-f]{40})$")
+    if record.is_file():
+        name = record.read_text().strip()
+    else:
+        existing = _run(["docker", "buildx", "ls", "--format", "{{.Name}}"]).splitlines()
+        owned = sorted(
+            n.strip().rstrip("*") for n in existing if pattern.fullmatch(n.strip().rstrip("*"))
+        )
+        name = "pd-demo-build" if "pd-demo-build" in owned or not owned else owned[0]
+        record.write_text(name + "\n")
+    if not pattern.fullmatch(name):
+        raise ValueError("Invalid owned demo builder name")
+    return name
+
+
 def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
     resources = capture_resources(settings.work_dir)
     headroom = resources.ram_available_bytes - max(2 * GiB, settings.remote_ram_reserve_bytes)
@@ -399,8 +441,8 @@ def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
     if resources.disk_free_bytes < max(settings.disk_reserve_bytes, 20 * GiB) + 8 * GiB:
         raise ValueError("Insufficient disk for image build and the 20GiB reserve")
     repo = _repo(settings)
-    revision = _clean_revision(repo)
-    builder = "pd-demo-" + revision
+    _clean_revision(repo)
+    builder = _owned_builder(settings.work_dir)
     config = settings.work_dir / "buildkitd.toml"
     config.write_text("[worker.oci]\n  max-parallelism = 1\n")
     # Preserve only our own cached builder state while refreshing hard limits.
