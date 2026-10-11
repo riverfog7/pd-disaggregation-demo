@@ -644,3 +644,40 @@ async def test_remote_effective_metadata_refreshed_only_after_configure(tmp_path
     await remote.configure_matching(profile)
     assert calls == [("GET", "/health")]
     await remote.close()
+
+
+async def test_pipeline_cancel_during_remote_configuration_cancels_worker(tmp_path):
+    pipeline = Pipeline(Settings(work_dir=tmp_path))
+    started = asyncio.Event()
+    cancel_calls = []
+
+    async def configure(profile):
+        started.set()
+        await asyncio.Event().wait()
+
+    async def cancel():
+        cancel_calls.append(True)
+
+    pipeline.remote.configure_matching = configure
+    pipeline.remote.cancel = cancel
+
+    async def consume():
+        return [
+            event
+            async for event in pipeline.generate(
+                GenerationRequest(
+                    token_ids=[1, 2],
+                    mode="split",
+                    max_tokens=2,
+                )
+            )
+        ]
+
+    task = asyncio.create_task(consume())
+    await started.wait()
+    await pipeline.cancel()
+    assert task.cancelled()
+    assert cancel_calls == [True]
+    assert not pipeline._remote_active
+    assert not pipeline._lock.locked()
+    await pipeline.close()

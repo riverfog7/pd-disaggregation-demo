@@ -93,10 +93,10 @@ class Pipeline:
             self._remote_active = False
 
     async def _remote_prefill(self, tokens: list[int]) -> tuple[PrefillArtifact, float]:
-        await self.remote.configure_matching(self.profile)
         manifest = None
         self._remote_active = True
         try:
+            await self.remote.configure_matching(self.profile)
             manifest = await self.remote.prefill(tokens)
             artifact, transfer_ms = await self.remote.download(manifest, self.fingerprint)
             return artifact, transfer_ms
