@@ -17,7 +17,13 @@ import typer
 
 from .catalog import MODELS, ensure_model
 from .config import Settings
-from .models import DecodeRequest, GenerationRequest, PrefillRequest, RuntimeProfile
+from .models import (
+    ArtifactManifest,
+    DecodeRequest,
+    GenerationRequest,
+    PrefillRequest,
+    RuntimeProfile,
+)
 
 app = typer.Typer(
     no_args_is_help=True, help="Benchmark native Mac decode with local or CUDA prefill."
@@ -29,6 +35,9 @@ app.add_typer(models, name="models")
 ModelOption = Annotated[str, typer.Option("--model", help="Pinned GGUF model profile")]
 ContextOption = Annotated[int, typer.Option("--context", min=256)]
 CacheOption = Annotated[str, typer.Option("--cache", help="f16 or q8_0")]
+ApiOption = Annotated[
+    str | None, typer.Option("--api-url", help="Reuse an already running Mac API; starts no engine")
+]
 
 
 def _settings(**overrides) -> Settings:
@@ -323,6 +332,20 @@ async def _operation(settings, profile, operation):
         await pipeline.close()
 
 
+async def _api_operation(api_url, settings, profile, operation):
+    from .client.local import LocalClient
+
+    async with LocalClient(api_url, timeout=settings.request_timeout) as client:
+        try:
+            if profile is not None:
+                await client.configure(profile)
+            return await operation(client)
+        except asyncio.CancelledError:
+            with contextlib.suppress(httpx.HTTPError, RuntimeError):
+                await client.cancel()
+            raise
+
+
 @app.command()
 def prefill(
     prompt: str | None = None,
@@ -331,9 +354,27 @@ def prefill(
     model: ModelOption = "qwen3.5-4b",
     context: ContextOption = 8192,
     cache: CacheOption = "f16",
+    api_url: ApiOption = None,
 ):
     """Save a local or remote prefill artifact on this Mac."""
     text = _input(prompt, prompt_file)
+
+    if api_url is not None:
+
+        async def api_run(client):
+            manifest = await client.prefill(
+                PrefillRequest(prompt=text, backend="remote" if remote else "local")
+            )
+            _json(
+                {
+                    "artifact_id": manifest.artifact_id,
+                    "api_url": client.api_url,
+                    "manifest": manifest.model_dump(mode="json"),
+                }
+            )
+
+        asyncio.run(_api_operation(api_url, _settings(), _profile(model, context, cache), api_run))
+        return
 
     async def run(pipeline):
         value = await pipeline.prefill(
@@ -350,17 +391,39 @@ def prefill(
 
 
 @app.command()
-def decode(artifact: Path, max_tokens: int = 128):
+def decode(artifact: Path, max_tokens: int = 128, api_url: ApiOption = None):
     """Resume the matching model/cache/context from a saved prefill directory."""
     from .artifacts import load_artifact
 
-    value = load_artifact(artifact)
-    fingerprint = value.manifest.fingerprint
+    if api_url is not None:
+        manifest_path = artifact if artifact.is_file() else artifact / "manifest.json"
+        manifest = ArtifactManifest.model_validate_json(manifest_path.read_text())
+    else:
+        value = load_artifact(artifact)
+        manifest = value.manifest
+    fingerprint = manifest.fingerprint
     profile = RuntimeProfile(
-        model_id=value.manifest.model_id,
+        model_id=manifest.model_id,
         context_size=fingerprint.context_size,
         cache_type=fingerprint.cache_type_k,
     )
+
+    if api_url is not None:
+
+        async def api_run(client):
+            server_manifest = await client.manifest(manifest.artifact_id)
+            if server_manifest != manifest:
+                raise RuntimeError(
+                    "Server artifact manifest differs from the selected local manifest"
+                )
+            async with contextlib.aclosing(
+                client.decode(manifest.artifact_id, DecodeRequest(max_tokens=max_tokens))
+            ) as events:
+                async for event in events:
+                    typer.echo(event.model_dump_json())
+
+        asyncio.run(_api_operation(api_url, _settings(), profile, api_run))
+        return
 
     async def run(pipeline):
         async for event in pipeline.decode(value, DecodeRequest(max_tokens=max_tokens)):
@@ -378,6 +441,7 @@ def generate(
     model: ModelOption = "qwen3.5-4b",
     context: ContextOption = 8192,
     cache: CacheOption = "f16",
+    api_url: ApiOption = None,
 ):
     """Generate with newline-delimited typed progress and measurements."""
     request = GenerationRequest.model_validate(
@@ -385,10 +449,14 @@ def generate(
     )
 
     async def run(pipeline):
-        async for event in pipeline.generate(request):
-            typer.echo(event.model_dump_json())
+        async with contextlib.aclosing(pipeline.generate(request)) as events:
+            async for event in events:
+                typer.echo(event.model_dump_json())
 
-    asyncio.run(_operation(_settings(), _profile(model, context, cache), run))
+    if api_url is not None:
+        asyncio.run(_api_operation(api_url, _settings(), _profile(model, context, cache), run))
+    else:
+        asyncio.run(_operation(_settings(), _profile(model, context, cache), run))
 
 
 @app.command()
@@ -399,6 +467,7 @@ def benchmark(
     sizes: str = "1024,4096,8192,16384,32768",
     repeats: int = 5,
     output_tokens: int = 128,
+    api_url: ApiOption = None,
 ):
     """Run alternating local/split pairs and save JSON, CSV and HTML reports."""
     from .benchmarks import BenchmarkConfig, run_benchmark
@@ -419,7 +488,21 @@ def benchmark(
             if event.report:
                 status = event.report.status
 
-    asyncio.run(_operation(settings, config.profile, run))
+    if api_url is not None:
+
+        async def api_run(client):
+            nonlocal status
+            async with contextlib.aclosing(client.benchmark(config)) as events:
+                async for event in events:
+                    typer.echo(event.model_dump_json())
+                    if event.report:
+                        status = event.report.status
+                    elif event.kind in ("error", "cancelled"):
+                        status = "failed" if event.kind == "error" else "cancelled"
+
+        asyncio.run(_api_operation(api_url, settings, None, api_run))
+    else:
+        asyncio.run(_operation(settings, config.profile, run))
     if status != "completed":
         raise typer.Exit(1)
 
