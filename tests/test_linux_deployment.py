@@ -162,3 +162,28 @@ def test_builder_cache_identity_persists_and_adopts_only_owned_cache(monkeypatch
 def test_fresh_builder_uses_stable_project_identity(monkeypatch, tmp_path):
     monkeypatch.setattr(operations, "_run", lambda *a, **kw: "default\nother-user\n")
     assert operations._owned_builder(tmp_path) == "pd-demo-build"
+
+
+def test_occupied_worker_port_refuses_unrelated_listener_before_build(monkeypatch):
+    import socket
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        monkeypatch.setattr(operations, "_run", lambda *a, **kw: "")
+        with pytest.raises(ValueError, match="unrelated listener"):
+            operations._check_worker_port(Settings(worker_port=port))
+
+        # A known own worker publishing this exact port can be replaced safely.
+        def owned(args, **kwargs):
+            if args[1] == "ps":
+                return "own-container"
+            return (
+                '[{"NetworkSettings":{"Ports":{"8090/tcp":[{"HostIp":"127.0.0.1","HostPort":"'
+                + str(port)
+                + '"}]}}}]'
+            )
+
+        monkeypatch.setattr(operations, "_run", owned)
+        operations._check_worker_port(Settings(worker_port=port))

@@ -90,3 +90,9 @@ its owned native engine. Health becomes `resource_refused` with
 are rejected until explicit `/configure` restarts the runtime through admission.
 A transient single sample does not stop a request. The worker never restarts
 itself repeatedly or stops an unrelated workload to recover capacity.
+
+Deployment and local Linux launch probe the requested host loopback port before
+building. An occupied port is accepted only when Docker identifies the demo's
+own worker publishing that exact address/port; unrelated listeners are left
+running and the build is refused. Long build/deployment commands stream their
+diagnostics to stderr immediately while retaining stdout for structured JSON.

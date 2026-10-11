@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shlex
+import socket
 import subprocess
 from pathlib import Path
 
@@ -220,10 +221,27 @@ test -z "$(git -C "$release" status --porcelain)"
 limit=$(python3 - "$root/env/$revision.env" "$revision" "$root/data" \\
   {settings.worker_port} {shlex.quote(profile_json)} <<'PYENV'
 import json, pathlib, shutil, sys
+import socket, subprocess
 mem = dict((line.split(':')[0], int(line.split()[1])*1024)
            for line in pathlib.Path('/proc/meminfo').read_text().splitlines())
 reserve = 2*1024**3
 available = mem['MemAvailable']
+with socket.socket() as probe:
+    try:
+        probe.bind(('127.0.0.1', int(sys.argv[4])))
+    except OSError:
+        ids = subprocess.check_output(['docker','ps','--filter',
+            'label=com.docker.compose.project={PROJECT}', '--filter',
+            'label=com.docker.compose.service=worker','--format','{{{{.ID}}}}'],
+            text=True).split()
+        containers = json.loads(subprocess.check_output(['docker','inspect',*ids],
+            text=True)) if ids else []
+        owned = any(binding.get('HostPort') == sys.argv[4] and
+            binding.get('HostIp') in ('127.0.0.1','0.0.0.0','::','') for container in containers
+            for bindings in container.get('NetworkSettings',{{}}).get('Ports',{{}}).values()
+            for binding in (bindings or []))
+        if not owned:
+            raise SystemExit('Worker port is occupied by an unrelated listener; refusing build')
 # CUDA compilation uses one job and requires at least 1GiB above the host reserve.
 if available < reserve + 1024**3:
     raise SystemExit('Insufficient RAM for safe single-job CUDA build')
@@ -473,7 +491,40 @@ def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
         _run(["docker", "buildx", "stop", builder])
 
 
+def _check_worker_port(settings: Settings) -> None:
+    with socket.socket() as probe:
+        try:
+            probe.bind(("127.0.0.1", settings.worker_port))
+            return
+        except OSError:
+            identifiers = _run(
+                [
+                    "docker",
+                    "ps",
+                    "--filter",
+                    f"label=com.docker.compose.project={PROJECT}",
+                    "--filter",
+                    "label=com.docker.compose.service=worker",
+                    "--format",
+                    "{{.ID}}",
+                ]
+            ).split()
+            containers = (
+                json.loads(_run(["docker", "inspect", *identifiers])) if identifiers else []
+            )
+            owned = any(
+                binding.get("HostPort") == str(settings.worker_port)
+                and binding.get("HostIp") in ("127.0.0.1", "0.0.0.0", "::", "")
+                for container in containers
+                for bindings in container.get("NetworkSettings", {}).get("Ports", {}).values()
+                for binding in (bindings or [])
+            )
+            if not owned:
+                raise ValueError("Worker port is occupied by an unrelated listener; refusing build")
+
+
 def serve_linux(settings: Settings, profile: RuntimeProfile, detach: bool = True) -> dict:
+    _check_worker_port(settings)
     args = _local_compose(settings, profile)
     _bounded_local_build(settings, args)
     _run(
