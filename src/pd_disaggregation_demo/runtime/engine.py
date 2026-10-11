@@ -224,7 +224,6 @@ class LlamaRuntime:
             except psutil.NoSuchProcess:
                 pass
         data["native_process_rss_bytes"] = native_rss
-        data["process_rss_bytes"] += native_rss
         return data
 
     async def health(self) -> dict:
