@@ -24,11 +24,12 @@ def fake_api(monkeypatch):
         "opened": 0,
         "closed": 0,
         "completions": 0,
+        "timeout": None,
     }
 
     class Client:
         def __init__(self, api_url, timeout):
-            pass
+            scenario["timeout"] = timeout
 
         async def __aenter__(self):
             return self
@@ -41,8 +42,27 @@ def fake_api(monkeypatch):
             if scenario["recover"] and scenario["health_calls"] > 1:
                 scenario["outage"] = False
             return {
-                "local": {"status": "ready"},
-                "remote": {"status": "unavailable" if scenario["outage"] else "ready"},
+                "status": "ready",
+                "git_revision": "mac-revision",
+                "local": {
+                    "status": "ready",
+                    "profile": {
+                        "model_id": "qwen3.5-0.8b",
+                        "cache_type": "f16",
+                        "context_size": 8192,
+                    },
+                    "engine_revision": "pinned-engine-revision",
+                },
+                "remote": {
+                    "status": "unavailable" if scenario["outage"] else "ready",
+                    "git_revision": "worker-revision",
+                    "profile": {
+                        "model_id": "qwen3.5-0.8b",
+                        "cache_type": "f16",
+                        "context_size": 8192,
+                    },
+                    "engine": {"engine_revision": "pinned-engine-revision"},
+                },
             }
 
         async def cancel(self):
@@ -97,6 +117,13 @@ async def test_api_probe_cancels_and_disconnects_owned_streams_then_checks_recov
     }
     assert fake_api["cancel_calls"] == 2
     assert fake_api["closed"] == fake_api["opened"]
+    assert fake_api["timeout"] == validation.Settings().request_timeout
+    assert report["api_before"]["git_revision"] == "mac-revision"
+    assert report["api_after"]["profile"]["context_size"] == 8192
+    assert report["api_before"]["engine_revision"] == "pinned-engine-revision"
+    assert report["worker_before"]["git_revision"] == "worker-revision"
+    assert report["worker_after"]["profile"]["cache_type"] == "f16"
+    assert report["worker_before"]["engine_revision"] == "pinned-engine-revision"
 
 
 async def test_api_probe_detects_different_recovery_continuation(fake_api):
@@ -105,6 +132,37 @@ async def test_api_probe_detects_different_recovery_continuation(fake_api):
     assert not report["success"]
     assert "differs after interruption" in report["error"]["message"]
     assert fake_api["closed"] == fake_api["opened"]
+
+
+async def test_api_probe_uses_configurable_inference_timeout(fake_api):
+    report = await validation.validate("http://mac", interruption_delay=0, request_timeout=75)
+    assert report["success"]
+    assert fake_api["timeout"] == report["request_timeout_seconds"] == 75
+
+
+async def test_worker_snapshot_records_direct_worker_provenance(monkeypatch):
+    import httpx
+
+    original = httpx.AsyncClient
+    health = {
+        "status": "ready",
+        "busy": False,
+        "git_revision": "worker-revision",
+        "profile": {"model_id": "qwen3.5-0.8b", "cache_type": "q8_0", "context_size": 4096},
+        "engine": {"engine_revision": "pinned-engine-revision"},
+    }
+    monkeypatch.setattr(
+        validation.httpx,
+        "AsyncClient",
+        lambda **kwargs: original(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json=health)),
+            **kwargs,
+        ),
+    )
+    result = await validation.worker_snapshot("http://worker")
+    assert result["git_revision"] == "worker-revision"
+    assert result["profile"]["context_size"] == 4096
+    assert result["engine_revision"] == "pinned-engine-revision"
 
 
 @pytest.mark.parametrize("recover", [False, True])

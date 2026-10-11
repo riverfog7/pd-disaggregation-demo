@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import contextlib
 import json
+import math
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ from typing import Any
 import httpx
 
 from pd_disaggregation_demo.client.local import LocalClient
+from pd_disaggregation_demo.config.settings import Settings
 from pd_disaggregation_demo.models import GenerationRequest, Mode
 
 PROMPT = "Explain why the sky is blue in one sentence."
@@ -104,13 +106,23 @@ async def interrupt(client: LocalClient, mode: Mode, action: str, delay: float) 
     }
 
 
+def provenance(health: dict) -> dict:
+    engine = health.get("local", health.get("engine", health))
+    return {
+        "status": health.get("status"),
+        "git_revision": health.get("git_revision"),
+        "profile": health.get("profile", engine.get("profile")),
+        "engine_revision": engine.get("engine_revision"),
+        "busy": health.get("busy"),
+    }
+
+
 async def worker_snapshot(url: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=5, trust_env=False) as client:
             response = await client.get(url.rstrip("/") + "/health")
             response.raise_for_status()
-            value = response.json()
-            return {"status": value.get("status"), "busy": value.get("busy")}
+            return provenance(response.json())
     except httpx.HTTPError as error:
         return {"status": "unavailable", "error": f"{type(error).__name__}: {error}"}
 
@@ -123,19 +135,25 @@ async def validate(
     expect_worker_unavailable: bool = False,
     wait_for_worker_recovery: float = 0,
     interruption_delay: float = 0.1,
+    request_timeout: float | None = None,
 ) -> dict:
+    request_timeout = Settings().request_timeout if request_timeout is None else request_timeout
     report: dict[str, Any] = {
         "schema_version": 1,
         "created_at": datetime.now(UTC).isoformat(),
         "api_url": api_url,
+        "worker_url": worker_url,
+        "request_timeout_seconds": request_timeout,
         "scope": "HTTP cancellation/disconnect and request recovery; no process control",
         "cases": [],
         "worker_failure": None,
         "success": False,
     }
     try:
-        async with LocalClient(api_url, timeout=30) as client:
+        async with LocalClient(api_url, timeout=request_timeout) as client:
             health = await client.health()
+            report["api_before"] = provenance(health)
+            report["worker_before"] = provenance(health.get("remote", {}))
             if health.get("local", health).get("status") != "ready":
                 raise AssertionError("The existing Mac API must have a ready native engine")
             if worker_url:
@@ -183,6 +201,13 @@ async def validate(
                     case = await interrupt(client, mode, action, interruption_delay)
                     case["recovery"] = await recovery(client, mode, baseline)
                     report["cases"].append(case)
+            health = await client.health()
+            report["api_after"] = provenance(health)
+            report["worker_after"] = (
+                await worker_snapshot(worker_url)
+                if worker_url
+                else provenance(health.get("remote", {}))
+            )
             report["success"] = True
     except Exception as error:
         report["error"] = {"type": type(error).__name__, "message": str(error)}
@@ -197,12 +222,21 @@ def main():
     parser.add_argument("--expect-worker-unavailable", action="store_true")
     parser.add_argument("--wait-for-worker-recovery", type=float, default=0)
     parser.add_argument("--interruption-delay", type=float, default=0.1)
+    parser.add_argument(
+        "--request-timeout",
+        type=float,
+        help="Inference/transfer timeout in seconds (default: Settings request_timeout)",
+    )
     parser.add_argument("--output", type=Path, default=Path("reports/api-lifecycle.json"))
     args = parser.parse_args()
     if not 0 <= args.interruption_delay <= 1 or args.wait_for_worker_recovery < 0:
         parser.error("Interruption delay must be 0..1 seconds and recovery wait nonnegative")
     if args.wait_for_worker_recovery and not args.expect_worker_unavailable:
         parser.error("--wait-for-worker-recovery requires --expect-worker-unavailable")
+    if args.request_timeout is not None and (
+        not math.isfinite(args.request_timeout) or args.request_timeout <= 0
+    ):
+        parser.error("--request-timeout must be a finite positive number")
     report = asyncio.run(
         validate(
             args.api_url,
@@ -211,6 +245,7 @@ def main():
             expect_worker_unavailable=args.expect_worker_unavailable,
             wait_for_worker_recovery=args.wait_for_worker_recovery,
             interruption_delay=args.interruption_delay,
+            request_timeout=args.request_timeout,
         )
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
