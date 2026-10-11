@@ -1,6 +1,7 @@
 import html
 import json
 import math
+from collections import Counter
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -212,6 +213,7 @@ def projection_html(report: BenchmarkReport) -> str:
 
 
 def curves(reports: list[BenchmarkReport]):
+    prefix_counts = Counter((report.config.label or report.run_id[:8])[:16] for report in reports)
     figure = make_subplots(
         rows=4,
         cols=1,
@@ -228,6 +230,10 @@ def curves(reports: list[BenchmarkReport]):
         rows = report.summary
         full_prefix = report.config.label or report.run_id[:8]
         prefix = full_prefix[:16] + ("…" if len(full_prefix) > 16 else "")
+        if len(reports) > 1 and prefix_counts[full_prefix[:16]] > 1:
+            prefix = (
+                full_prefix[:7] + ("…" if len(full_prefix) > 7 else "") + f" {report.run_id[:6]}"
+            )
         x = [r["prompt_tokens"] for r in rows]
         for mode in ("local", "split"):
             for metric, row, col in (
@@ -241,7 +247,7 @@ def curves(reports: list[BenchmarkReport]):
                         y=[r.get(f"{mode}_{metric}") for r in rows],
                         mode="lines+markers",
                         name=f"{prefix} · {mode}" if len(reports) > 1 else mode.title(),
-                        legendgroup=f"{prefix}-{mode}",
+                        legendgroup=f"{report.run_id}-{mode}",
                         showlegend=(row, col) == (1, 1),
                         line={"color": COLORS[mode]},
                         connectgaps=False,

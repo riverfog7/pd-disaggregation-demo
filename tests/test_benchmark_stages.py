@@ -186,3 +186,41 @@ def test_charts_reserve_full_width_for_data_on_narrow_panels():
     assert timeline.layout.height >= 480
     assert timeline.layout.title.text == "Whole-request timeline"
     assert all(len(trace.name) <= 22 for trace in timeline.data)
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [
+        ("same run label", "same run label"),
+        ("same-long-prefix-16-first", "same-long-prefix-16-second"),
+    ],
+)
+def test_same_prefix_runs_have_independent_legend_groups_and_visible_ids(labels):
+    reports = [report_with_pair(), report_with_pair()]
+    for report, label, identifier in zip(reports, labels, ("a" * 32, "b" * 32), strict=True):
+        report.run_id = identifier
+        report.config.label = label
+        report.summary = [{"prompt_tokens": 256, "local_ttft_ms": 25, "split_ttft_ms": 35}]
+        report.samples[1].result.metrics.state_bytes = 1_000_000
+    figure = curves(reports)
+    for mode in ("local", "split"):
+        groups = [
+            trace.legendgroup
+            for trace in figure.data
+            if trace.showlegend and trace.name.endswith(mode)
+        ]
+        assert set(groups) == {f"{report.run_id}-{mode}" for report in reports}
+        assert len(groups) == 2
+        names = [trace.name for trace in figure.data if trace.legendgroup in groups]
+        assert len(set(names)) == 2
+        for report in reports:
+            related = [
+                trace for trace in figure.data if trace.legendgroup == f"{report.run_id}-{mode}"
+            ]
+            assert len(related) == 3  # Toggle only this run's TTFT, prefill and decode traces.
+            assert all(report.run_id[:6] in trace.name for trace in related)
+    modeled = [trace for trace in figure.data if trace.name.endswith("1Gbps model")]
+    assert {trace.legendgroup for trace in modeled} == {
+        f"{report.run_id}-modeled-1gbps" for report in reports
+    }
+    assert len({trace.name for trace in modeled}) == 2
