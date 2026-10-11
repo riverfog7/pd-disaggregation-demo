@@ -6,6 +6,15 @@ from pydantic import Field, model_validator
 
 from ..models import GenerationResult, RuntimeProfile, Schema
 
+ONE_GBPS_NOTE = (
+    "Modeled ideal 1Gbps is an optimistic projection, not a LAN measurement: split TTFT "
+    "− measured transfer time + state bytes / 125,000,000 × 1,000 ms. Other observed "
+    "overhead stays unchanged. The replacement assumes payload-only 1,000 Mbit/s and omits "
+    "transport framing, checksum and disk costs inside the measured transfer timer. "
+    "Its paired CI describes sample variation under this fixed assumption, not real-link "
+    "uncertainty or evidence of a measured win."
+)
+
 
 class BenchmarkConfig(Schema):
     profile: RuntimeProfile = Field(default_factory=RuntimeProfile)
@@ -64,6 +73,7 @@ class BenchmarkReport(Schema):
             "Sampled peaks can miss short transients; inspect sampling period/count.",
             "Canonical corpus tokenization is preparation time, outside measured request TTFT.",
             "Native prefill throughput counts N tokens locally and N-1 remotely before handoff.",
+            ONE_GBPS_NOTE,
         ]
     )
 

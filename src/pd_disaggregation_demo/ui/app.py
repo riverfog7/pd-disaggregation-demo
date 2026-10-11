@@ -11,6 +11,7 @@ from ..benchmarks.charts import (
     memory_chart,
     memory_rows,
     phases,
+    projection_html,
     stage_comparison_html,
     transfer,
 )
@@ -172,6 +173,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                             list(report.exports.values()) or None,
                             gr.update(choices=history_choices()),
                             stage_comparison_html(report),
+                            projection_html(report),
                             gr.update(interactive=report.status != "running"),
                         )
                     except (GeneratorExit, asyncio.CancelledError):
@@ -182,7 +184,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 raise
             yield (
                 f"**Failed** · {exc}",
-                *(gr.skip() for _ in range(11)),
+                *(gr.skip() for _ in range(12)),
                 gr.update(interactive=True),
             )
         finally:
@@ -314,6 +316,11 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 "<p>Waiting for a complete local/split pair. Values will appear here in ms.</p>"
             )
             chart = gr.Plot(label="Latency and throughput")
+            modeled = gr.HTML(
+                "<h3>Modeled ideal 1Gbps · optimistic projection</h3>"
+                "<p>Measurements will be compared with an ideal payload-only 1Gbps transfer. "
+                "This is a projection, not a measured LAN result.</p>"
+            )
             gr.Markdown(
                 "Medians summarize each mode. Speedup uses complete within-repeat pairs with "
                 "a 95% bootstrap interval. A supported win requires the lower bound > 1. "
@@ -351,6 +358,11 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 refresh_button = gr.Button("Refresh history")
                 compare_button = gr.Button("Compare selected runs")
             history_plot = gr.Plot(label="Saved run comparison")
+            gr.Markdown(
+                "Dashed purple **1Gbps model** lines replace only measured transfer time with "
+                "ideal payload time. They are optimistic projections, not measured LAN results; "
+                "transport framing, checksum and disk costs in that timer are omitted."
+            )
             history_downloads = gr.HTML("<p>Select saved runs to download their reports.</p>")
         with gr.Tab("Chat"):
             gr.Markdown(
@@ -380,6 +392,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 downloads,
                 history,
                 stage_times,
+                modeled,
                 run,
             ],
             concurrency_id="demo-runtime",

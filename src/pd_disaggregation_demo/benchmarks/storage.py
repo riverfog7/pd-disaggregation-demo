@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..models import RunMetrics
 from .models import BenchmarkReport
+from .stats import add_modeled_projection, modeled_split_ttft_ms, modeled_transfer_ms
 
 
 def _remote_git_revision(report: BenchmarkReport) -> str:
@@ -38,6 +39,7 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
             [point.model_dump() for point in report.skipped], ensure_ascii=False
         ),
         "benchmark_config": report.config.model_dump_json(),
+        "modeled_1gbps_assumption": "optimistic ideal payload-only 1000 Mbit/s; not measured",
     }
     rows = []
     for sample in report.samples:
@@ -60,6 +62,8 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
             item = getattr(result, name)
             row[name] = item.model_dump_json() if item else ""
         row["effective_settings"] = json.dumps(result.effective_settings, ensure_ascii=False)
+        row["modeled_1gbps_transfer_ms"] = modeled_transfer_ms(result)
+        row["modeled_1gbps_split_ttft_ms"] = modeled_split_ttft_ms(result)
         rows.append(row)
     with csv_path.with_suffix(".csv.tmp").open("w", newline="", encoding="utf-8") as stream:
         fieldnames = (
@@ -80,13 +84,22 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
                 "local_profile",
                 "remote_profile",
                 "effective_settings",
+                "modeled_1gbps_transfer_ms",
+                "modeled_1gbps_split_ttft_ms",
             ]
         )
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
     os.replace(csv_path.with_suffix(".csv.tmp"), csv_path)
-    from .charts import curves, memory_chart, phases, stage_comparison_html, transfer
+    from .charts import (
+        curves,
+        memory_chart,
+        phases,
+        projection_html,
+        stage_comparison_html,
+        transfer,
+    )
 
     figures = [curves([report]), phases(report), transfer(report), memory_chart(report)]
     from plotly.io import to_html
@@ -106,7 +119,8 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
 <style>body{{font:16px system-ui;max-width:1400px;margin:2rem auto;padding:0 1rem}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f5f7;padding:1rem}}</style></head>
 <body><h1>{title}</h1><p>Status: {report.status} · {report.created_at.isoformat()}</p>
-<ul>{notes}</ul>{stage_comparison_html(report)}{chart_html}<h2>Skipped points</h2><ul>{skipped}</ul>
+<ul>{notes}</ul>{stage_comparison_html(report)}{projection_html(report)}{chart_html}
+<h2>Skipped points</h2><ul>{skipped}</ul>
 <h2>Failures</h2><ul>{errors}</ul><details><summary>Full report, environment and memory</summary>
 <pre>{escaped}</pre></details></body></html>"""
     html_path = Path(report.exports["html"])
@@ -121,7 +135,9 @@ pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f5f7;padding:1rem
 
 
 def load_report(path: Path) -> BenchmarkReport:
-    return BenchmarkReport.model_validate_json(path.read_text(encoding="utf-8"))
+    return add_modeled_projection(
+        BenchmarkReport.model_validate_json(path.read_text(encoding="utf-8"))
+    )
 
 
 def list_reports(directory: Path) -> list[BenchmarkReport]:

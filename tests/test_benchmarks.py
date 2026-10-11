@@ -345,6 +345,8 @@ async def test_ui_async_callback_outputs_and_gradio6_history(tmp_path):
     assert "256 prompt tokens · pair 1" in updates[-1][11]
     assert "Native decode · engine timing (not additive)" in updates[-1][11]
     assert updates[-1][11] in Path(updates[-1][9][-1]).read_text()
+    assert "Modeled ideal 1Gbps" in updates[-1][12]
+    assert "not a LAN measurement" in updates[-1][12]
 
 
 async def test_history_downloads_use_stable_api_routes_under_demo_mount(tmp_path):

@@ -5,7 +5,8 @@ import math
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .models import BenchmarkReport, BenchmarkSample
+from .models import ONE_GBPS_NOTE, BenchmarkReport, BenchmarkSample
+from .stats import add_modeled_projection
 
 COLORS = {"local": "#247BA0", "split": "#F18F01"}
 PHASES = {
@@ -178,6 +179,38 @@ def stage_comparison_html(report: BenchmarkReport) -> str:
     )
 
 
+def projection_html(report: BenchmarkReport) -> str:
+    add_modeled_projection(report)
+    rows = []
+    for row in report.summary:
+        value = row.get("modeled_1gbps_split_ttft_ms")
+        latency = f"{value:,.2f}" if value is not None else "Unavailable"
+        ratio = row.get("modeled_1gbps_speedup")
+        estimate = f"{ratio:.3f}×" if ratio is not None else "Unavailable"
+        low, high = row.get("modeled_1gbps_ci_low"), row.get("modeled_1gbps_ci_high")
+        interval = (
+            f"95% CI {low:.3f}–{high:.3f}×"
+            if low is not None and high is not None
+            else "95% CI unavailable"
+        )
+        rows.append(
+            '<tr style="border-bottom:1px solid #ddd">'
+            f'<td style="padding:7px">{row["prompt_tokens"]:,}</td>'
+            f'<td style="padding:7px;text-align:right">{latency}</td>'
+            f'<td style="padding:7px;text-align:right">{estimate}<br>{interval}'
+            f"<br>{row.get('modeled_1gbps_pairs', 0)} complete pairs</td></tr>"
+        )
+    return (
+        "<section><h3>Modeled ideal 1Gbps · optimistic projection</h3>"
+        f"<p>{html.escape(ONE_GBPS_NOTE)}</p>"
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        '<thead><tr><th style="text-align:left;padding:7px">Prompt tokens</th>'
+        '<th style="text-align:right;padding:7px">Modeled split TTFT (ms)</th>'
+        '<th style="text-align:right;padding:7px">Modeled local/split ratio</th>'
+        f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div></section>"
+    )
+
+
 def curves(reports: list[BenchmarkReport]):
     figure = make_subplots(
         rows=4,
@@ -191,6 +224,7 @@ def curves(reports: list[BenchmarkReport]):
         ),
     )
     for report in reports:
+        add_modeled_projection(report)
         rows = report.summary
         full_prefix = report.config.label or report.run_id[:8]
         prefix = full_prefix[:16] + ("…" if len(full_prefix) > 16 else "")
@@ -233,6 +267,63 @@ def curves(reports: list[BenchmarkReport]):
             row=2,
             col=1,
         )
+        if any(row.get("modeled_1gbps_split_ttft_ms") is not None for row in rows):
+            modeled_name = f"{prefix} · 1Gbps model" if len(reports) > 1 else "1Gbps model"
+            group = f"{report.run_id}-modeled-1gbps"
+            figure.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=[row.get("modeled_1gbps_split_ttft_ms") for row in rows],
+                    mode="lines+markers",
+                    name=modeled_name,
+                    legendgroup=group,
+                    line={"color": "#8B5CF6", "dash": "dash"},
+                    connectgaps=False,
+                    hovertemplate=(
+                        "Modeled ideal 1Gbps<br>%{x} tokens<br>"
+                        "Split TTFT %{y:.2f} ms<extra></extra>"
+                    ),
+                ),
+                row=1,
+                col=1,
+            )
+            estimate = [row.get("modeled_1gbps_speedup") for row in rows]
+            figure.add_trace(
+                go.Scatter(
+                    x=x,
+                    y=estimate,
+                    mode="lines+markers",
+                    name=modeled_name,
+                    legendgroup=group,
+                    showlegend=False,
+                    line={"color": "#8B5CF6", "dash": "dash"},
+                    connectgaps=False,
+                    error_y={
+                        "type": "data",
+                        "symmetric": False,
+                        "array": [
+                            None
+                            if row.get("modeled_1gbps_ci_high") is None
+                            else row["modeled_1gbps_ci_high"] - value
+                            for row, value in zip(rows, estimate, strict=True)
+                        ],
+                        "arrayminus": [
+                            None
+                            if row.get("modeled_1gbps_ci_low") is None
+                            else value - row["modeled_1gbps_ci_low"]
+                            for row, value in zip(rows, estimate, strict=True)
+                        ],
+                    },
+                    customdata=[row.get("modeled_1gbps_pairs", 0) for row in rows],
+                    hovertemplate=(
+                        "Modeled ideal 1Gbps<br>%{x} tokens<br>"
+                        "Local / projected split %{y:.3f}×<br>"
+                        "%{customdata} complete pairs<extra></extra>"
+                    ),
+                ),
+                row=2,
+                col=1,
+            )
     figure.add_hline(y=1, line_dash="dash", line_color="#777", row=2, col=1)
     figure.update_xaxes(type="log", tickangle=0, nticks=4, automargin=True)
     figure.update_xaxes(title_text="Prompt tokens", row=4, col=1)
