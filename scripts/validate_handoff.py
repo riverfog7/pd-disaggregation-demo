@@ -5,7 +5,8 @@ Run locally with `uv run python scripts/validate_handoff.py`. Add
 `--worker-url http://127.0.0.1:8090` (for an SSH-forwarded worker), or an explicitly
 accessible worker URL, to validate CUDA export -> Metal restore as well. The local
 native server uses a private port and is always closed. Settings also honor PDD_*
-environment variables. This validates a specific prompt/run, not universal numerical
+environment variables. Add `--prompt-tokens 8192` for an exact benchmark corpus
+prompt and an automatically sized context. This validates a specific run, not universal numerical
 identity between kernels, cache formats, or devices.
 """
 
@@ -146,14 +147,29 @@ async def rejection_checks(runtime, artifact, request, expected):
     return outcomes
 
 
-async def validate(settings: Settings, model_id: str, max_tokens: int, use_worker: bool) -> dict:
+async def validate(
+    settings: Settings,
+    model_id: str,
+    max_tokens: int,
+    use_worker: bool,
+    prompt_tokens: int | None = None,
+) -> dict:
+    context_size = 1024
+    if prompt_tokens is not None:
+        if not 2 <= prompt_tokens <= 262144 or prompt_tokens + max_tokens > 262144:
+            raise ValueError(
+                "Prompt tokens plus output must fit the supported 262144-token context"
+            )
+        context_size = max(1024, ((prompt_tokens + max_tokens + 255) // 256) * 256)
     report = {
         "schema_version": 1,
         "created_at": datetime.now(UTC).isoformat(),
         "engine_revision": settings.engine_revision,
         "model_id": model_id,
         "scope": "specific deterministic native runs; numerical comparisons are observations",
-        "prompt": PROMPT,
+        "prompt": PROMPT if prompt_tokens is None else "benchmark exact_tokens corpus",
+        "requested_prompt_tokens": prompt_tokens,
+        "context_size": context_size,
         "max_tokens": max_tokens,
         "local": [],
         "cuda_to_metal": [],
@@ -169,7 +185,7 @@ async def validate(settings: Settings, model_id: str, max_tokens: int, use_worke
                 RuntimeProfile(
                     model_id=model_id,
                     cache_type=cache,
-                    context_size=1024,
+                    context_size=context_size,
                     batch_size=256,
                     ubatch_size=128,
                 ),
@@ -180,8 +196,17 @@ async def validate(settings: Settings, model_id: str, max_tokens: int, use_worke
             remote_manifest = None
             try:
                 await runtime.start()
-                prompt = await runtime.format_chat([{"role": "user", "content": PROMPT}])
-                token_ids = await runtime.tokenize(prompt)
+                if prompt_tokens is None:
+                    prompt = await runtime.format_chat([{"role": "user", "content": PROMPT}])
+                    token_ids = await runtime.tokenize(prompt)
+                else:
+                    from pd_disaggregation_demo.benchmarks.runner import exact_tokens
+
+                    token_ids = await exact_tokens(runtime, prompt_tokens)
+                    if len(token_ids) != prompt_tokens:
+                        raise AssertionError(
+                            "Benchmark corpus did not yield the requested token count"
+                        )
                 request = DecodeRequest(
                     max_tokens=max_tokens, temperature=0, seed=123, ignore_eos=True
                 )
@@ -205,6 +230,8 @@ async def validate(settings: Settings, model_id: str, max_tokens: int, use_worke
                         "startup_ms": runtime.startup_ms,
                         "canonical_token_ids": token_ids,
                         "prompt_tokens": len(token_ids),
+                        "requested_prompt_tokens": prompt_tokens,
+                        "actual_canonical_tokens": len(token_ids),
                         "artifact": artifact_summary(artifact),
                         "direct": direct,
                         "same_artifact_restored_twice": [
@@ -242,6 +269,8 @@ async def validate(settings: Settings, model_id: str, max_tokens: int, use_worke
                     report["cuda_to_metal"].append(
                         {
                             "cache_type": cache,
+                            "requested_prompt_tokens": prompt_tokens,
+                            "actual_canonical_tokens": len(token_ids),
                             "remote_profile": profile.model_dump(mode="json"),
                             "artifact": artifact_summary(remote_artifact),
                             "transfer_ms": transfer_ms,
@@ -284,8 +313,19 @@ def main():
     parser.add_argument("--work-dir", type=Path)
     parser.add_argument("--cache-dir", type=Path)
     parser.add_argument("--max-tokens", type=int, default=24)
+    parser.add_argument(
+        "--prompt-tokens", type=int, help="Use exactly N canonical benchmark corpus tokens"
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if not 1 <= args.max_tokens <= 8192:
+        parser.error("--max-tokens must be between 1 and 8192")
+    if args.prompt_tokens is not None and (
+        not 2 <= args.prompt_tokens <= 262144 or args.prompt_tokens + args.max_tokens > 262144
+    ):
+        parser.error(
+            "--prompt-tokens must be at least 2 and prompt plus output must not exceed 262144"
+        )
     overrides = {"engine_port": args.engine_port}
     for field in ("work_dir", "cache_dir"):
         if (value := getattr(args, field)) is not None:
@@ -298,7 +338,13 @@ def main():
     )
     output = args.output or settings.reports_dir / "handoff-validation.json"
     report = asyncio.run(
-        validate(settings, args.model, args.max_tokens, args.worker_url is not None)
+        validate(
+            settings,
+            args.model,
+            args.max_tokens,
+            args.worker_url is not None,
+            args.prompt_tokens,
+        )
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n")
