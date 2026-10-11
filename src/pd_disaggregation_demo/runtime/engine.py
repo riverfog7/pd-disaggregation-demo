@@ -255,7 +255,7 @@ class LlamaRuntime:
                 raise
 
     async def ensure_ready(self) -> None:
-        """Restart the prior profile after cancelled configuration, before timing a request."""
+        """Restart the prior profile on its next owned operation after cancelled configuration."""
         if not self._restart_pending:
             return
         if self._lock.locked():
@@ -549,12 +549,12 @@ class LlamaRuntime:
                 temporary.unlink(missing_ok=True)
 
     async def generate(self, request: GenerationRequest) -> AsyncGenerator[GenerationEvent]:
+        start = time.perf_counter()
         await self.ensure_ready()
         if request.mode != "local":
             raise ValueError(
                 "Native runtime only implements local generation; use Pipeline for split"
             )
-        start = time.perf_counter()
         tokenize_start = time.perf_counter()
         tokens = request.token_ids
         if tokens is None:
@@ -575,8 +575,8 @@ class LlamaRuntime:
     async def decode(
         self, artifact: PrefillArtifact, request: DecodeRequest
     ) -> AsyncGenerator[GenerationEvent]:
-        await self.ensure_ready()
         start = time.perf_counter()
+        await self.ensure_ready()
         await asyncio.to_thread(validate_artifact, artifact, self.fingerprint)
         if artifact.manifest.model_id != self.profile.model_id:
             raise ValueError("Artifact model does not match runtime")

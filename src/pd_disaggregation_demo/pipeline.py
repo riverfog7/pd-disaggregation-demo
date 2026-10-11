@@ -153,13 +153,13 @@ class Pipeline:
 
     async def generate(self, request: GenerationRequest) -> AsyncGenerator[GenerationEvent]:
         async with self._request():
-            await self.runtime.ensure_ready()
             start = time.perf_counter()
             if request.mode == "local":
                 async with contextlib.aclosing(self.runtime.generate(request)) as stream:
                     async for event in stream:
                         yield event
                 return
+            await self.runtime.ensure_ready()
             tokenize_start = time.perf_counter()
             tokens = request.token_ids
             if tokens is None:

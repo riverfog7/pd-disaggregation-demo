@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import shutil
+import time
 from pathlib import Path
 
 import anyio
@@ -1060,4 +1061,60 @@ async def test_cancelled_configure_lazily_restores_previous_profile_for_direct_g
     assert attempts == [target, previous]
     assert not runtime._restart_pending
     assert runtime.startup_ms == 50
+    await pipeline.close()
+
+
+@pytest.mark.parametrize("operation", ["runtime_generate", "pipeline_generate", "decode", "split"])
+async def test_lazy_recovery_is_included_once_in_request_ttft(native, operation):
+    runtime, _ = native
+    pipeline = Pipeline(runtime.settings, runtime.profile)
+    pipeline.runtime = runtime
+    request = GenerationRequest(token_ids=[1, 2, 3, 4], max_tokens=2)
+    artifact = None
+    if operation in ("decode", "split"):
+        artifact = await runtime.prefill(request.token_ids)
+    if operation == "split":
+        artifact.manifest.source_backend = "cuda"
+        data = artifact.state_path.read_bytes()
+        shutil.rmtree(artifact.state_path.parent)
+        await pipeline.remote._client.aclose()
+
+        def worker(request):
+            if request.url.path == "/health":
+                return httpx.Response(
+                    200, json={"status": "ready", "profile": pipeline.profile.model_dump()}
+                )
+            if request.url.path == "/prefill":
+                return httpx.Response(200, json=artifact.manifest.model_dump(mode="json"))
+            if request.url.path.endswith("/state"):
+                return httpx.Response(200, content=data)
+            return httpx.Response(200, json={})
+
+        pipeline.remote._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(worker), base_url="http://worker"
+        )
+    starts = []
+
+    async def delayed_start():
+        starts.append(runtime.profile)
+        await asyncio.sleep(0.02)
+
+    runtime.start = delayed_start
+    runtime._restart_pending = True
+    if operation == "runtime_generate":
+        source = runtime.generate(request)
+    elif operation == "decode":
+        source = runtime.decode(artifact, DecodeRequest(max_tokens=2))
+    else:
+        request.mode = "split" if operation == "split" else "local"
+        source = pipeline.generate(request)
+    started = time.perf_counter()
+    events = [event async for event in source]
+    observed_ms = (time.perf_counter() - started) * 1000
+    result = events[-1].result
+    assert result is not None and result.metrics.ttft_ms is not None
+    assert 20 <= result.metrics.ttft_ms <= observed_ms
+    assert result.metrics.total_ms >= result.metrics.ttft_ms
+    assert len(starts) == 1
+    assert not runtime._restart_pending
     await pipeline.close()
