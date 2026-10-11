@@ -5,7 +5,7 @@ import contextlib
 import json
 import re
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -53,10 +53,11 @@ def _sse(data: Any, event: str | None = None) -> str:
     return f"{prefix}data: {value}\n\n"
 
 
-async def _events(source: AsyncIterator) -> AsyncIterator[str]:
+async def _events(source: AsyncGenerator) -> AsyncIterator[str]:
     try:
-        async for event in source:
-            yield _sse(event.model_dump(mode="json"), event.kind)
+        async with contextlib.aclosing(source):
+            async for event in source:
+                yield _sse(event.model_dump(mode="json"), event.kind)
     except Exception as exc:
         yield _sse({"error": str(exc)}, "error")
 
@@ -240,14 +241,23 @@ def create_app(
     async def chat(request: ChatRequest):
         if request.model and request.model != pipeline.profile.model_id:
             raise HTTPException(400, "Requested model is not currently loaded; use /configure")
-        prompt = await pipeline.format_chat([item.model_dump() for item in request.messages])
-        generation = GenerationRequest(
-            prompt=prompt,
-            mode=request.mode,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            seed=request.seed,
-        )
+
+        async def chat_events():
+            async with pipeline.session():
+                prompt = await pipeline.format_chat(
+                    [item.model_dump() for item in request.messages]
+                )
+                generation = GenerationRequest(
+                    prompt=prompt,
+                    mode=request.mode,
+                    max_tokens=request.max_tokens,
+                    temperature=request.temperature,
+                    seed=request.seed,
+                )
+                async with contextlib.aclosing(pipeline.generate(generation)) as source:
+                    async for event in source:
+                        yield event
+
         identifier = f"chatcmpl-{uuid4().hex}"
         created = int(time.time())
 
@@ -265,25 +275,27 @@ def create_app(
             async def stream_chat():
                 yield _sse(chunk({"role": "assistant"}))
                 try:
-                    async for event in pipeline.generate(generation):
-                        if event.kind == "token":
-                            yield _sse(chunk({"content": event.text}))
-                        if event.result:
-                            reason = (
-                                "length"
-                                if event.result.generated_tokens >= request.max_tokens
-                                else "stop"
-                            )
-                            yield _sse(chunk({}, reason))
+                    async with contextlib.aclosing(chat_events()) as source:
+                        async for event in source:
+                            if event.kind == "token":
+                                yield _sse(chunk({"content": event.text}))
+                            if event.result:
+                                reason = (
+                                    "length"
+                                    if event.result.generated_tokens >= request.max_tokens
+                                    else "stop"
+                                )
+                                yield _sse(chunk({}, reason))
                 except Exception as exc:
                     yield _sse({"error": {"message": str(exc), "type": "runtime_error"}})
                 yield _sse("[DONE]")
 
             return StreamingResponse(stream_chat(), media_type="text/event-stream")
         result = None
-        async for event in pipeline.generate(generation):
-            if event.result:
-                result = event.result
+        async with contextlib.aclosing(chat_events()) as source:
+            async for event in source:
+                if event.result:
+                    result = event.result
         if result is None:
             raise HTTPException(500, "Generation produced no result")
         return {

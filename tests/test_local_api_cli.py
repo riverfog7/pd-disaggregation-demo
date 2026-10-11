@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
@@ -18,6 +19,10 @@ class FakePipeline:
     profile = RuntimeProfile(model_id="qwen3.5-0.8b")
     started = False
     cancelled = False
+
+    @asynccontextmanager
+    async def session(self):
+        yield
 
     async def start(self):
         self.started = True
