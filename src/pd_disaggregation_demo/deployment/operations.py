@@ -1,5 +1,6 @@
 """Only the demo's Compose project is managed; source travels exclusively via Git."""
 
+import inspect
 import json
 import math
 import os
@@ -21,6 +22,22 @@ DEFAULT_BUILD_TIMEOUT_SECONDS = 6 * 60 * 60
 def _validate_build_timeout(seconds: float) -> None:
     if seconds <= 0 or not math.isfinite(seconds):
         raise ValueError("Build timeout must be finite and greater than zero")
+
+
+def _build_budget(available: int, reserve: int) -> tuple[int, int]:
+    """Select compiler RAM/jobs while preserving reserve and a parallelism margin."""
+    reserve = max(2 * GiB, reserve)
+    headroom = available - reserve
+    if headroom < GiB:
+        raise ValueError(
+            f"Insufficient RAM for a bounded single-job CUDA build: "
+            f"{reserve + GiB:,} bytes including reserve required; {available:,} available"
+        )
+    # Two compilers share a 4GiB hard cap only with another 1GiB left for host
+    # fluctuations above the mandatory reserve. BuildKit vertices remain serial.
+    if headroom >= 5 * GiB:
+        return 4 * GiB, 2
+    return min(headroom, 2 * GiB), 1
 
 
 def _run(
@@ -255,8 +272,11 @@ import json, pathlib, shutil, sys
 import socket, subprocess
 mem = dict((line.split(':')[0], int(line.split()[1])*1024)
            for line in pathlib.Path('/proc/meminfo').read_text().splitlines())
-reserve = 2*1024**3
+GiB = 1024**3
+{inspect.getsource(_build_budget)}
+reserve = 2*GiB
 available = mem['MemAvailable']
+build_limit, build_jobs = _build_budget(available, {settings.remote_ram_reserve_bytes})
 with socket.socket() as probe:
     try:
         probe.bind(('127.0.0.1', int(sys.argv[4])))
@@ -273,10 +293,6 @@ with socket.socket() as probe:
             for binding in (bindings or []))
         if not owned:
             raise SystemExit('Worker port is occupied by an unrelated listener; refusing build')
-# CUDA compilation uses one job and requires at least 1GiB above the host reserve.
-if available < reserve + 1024**3:
-    raise SystemExit(f'Insufficient RAM for safe single-job CUDA build: '
-        f'{{reserve + 1024**3:,}} bytes including reserve required; {{available:,}} available')
 disk_free = shutil.disk_usage(pathlib.Path(sys.argv[1]).parent).free
 if disk_free < 20*1024**3 + 8*1024**3:
     raise SystemExit(f'Insufficient disk for image, model/state and reserve: '
@@ -284,12 +300,12 @@ if disk_free < 20*1024**3 + 8*1024**3:
 limit = min(6*1024**3, available-reserve)
 profile=json.loads(sys.argv[5])
 values={{'PDD_RELEASE_SHA':sys.argv[2], 'PDD_REMOTE_DATA':sys.argv[3],
- 'PDD_WORKER_MEMORY':str(limit), 'PDD_WORKER_CPUS':'2', 'PDD_BUILD_JOBS':'1',
+ 'PDD_WORKER_MEMORY':str(limit), 'PDD_WORKER_CPUS':'2', 'PDD_BUILD_JOBS':str(build_jobs),
  'PDD_WORKER_PORT':sys.argv[4], 'PDD_MODEL_ID':profile['model_id'],
  'PDD_CONTEXT_SIZE':str(profile['context_size']), 'PDD_CACHE_TYPE':profile['cache_type'],
  'PDD_WORKER_PROFILE':json.dumps(profile,separators=(',',':'))}}
 pathlib.Path(sys.argv[1]).write_text(''.join(k+'='+json.dumps(v)+'\\n' for k,v in values.items()))
-print(min(limit, 2*1024**3))
+print(build_limit)
 PYENV
 )
 compose() {{
@@ -369,8 +385,8 @@ if [ -n "$prior" ] && [ "$prior" != "$release" ]; then ln -sfn "$prior" "$root/p
 ln -sfn "$release" "$root/current"
 trap - EXIT
 """
-    # A cold SM75 build can take hours at the intentionally bounded single-job
-    # setting. Fetch/readiness allowances must not consume its build deadline.
+    # A cold SM75 build can take hours at the intentionally bounded job count.
+    # Fetch/readiness allowances must not consume its build deadline.
     total_timeout = build_timeout + settings.request_timeout + health_timeout + 300
     output = _ssh(settings, script, timeout=total_timeout, stream=True)
     # Git/build progress can coexist with the final JSON health line.
@@ -449,7 +465,9 @@ def _local_compose(settings: Settings, profile: RuntimeProfile | None = None) ->
             "PDD_REMOTE_DATA": str(data.resolve()),
             "PDD_WORKER_MEMORY": str(min(available, 6 * GiB)),
             "PDD_WORKER_PORT": str(settings.worker_port),
-            "PDD_BUILD_JOBS": str(min(max(1, settings.build_jobs), 2)),
+            "PDD_BUILD_JOBS": str(
+                _build_budget(resources.ram_available_bytes, settings.remote_ram_reserve_bytes)[1]
+            ),
             "PDD_WORKER_PROFILE": profile.model_dump_json(),
             "PDD_MODEL_ID": profile.model_id,
             "PDD_CONTEXT_SIZE": str(profile.context_size),
@@ -498,14 +516,9 @@ def _bounded_local_build(
 ) -> None:
     _validate_build_timeout(build_timeout)
     resources = capture_resources(settings.work_dir)
-    reserve = max(2 * GiB, settings.remote_ram_reserve_bytes)
-    headroom = resources.ram_available_bytes - reserve
-    if headroom < GiB:
-        raise ValueError(
-            f"Insufficient RAM for a bounded single-job CUDA build: "
-            f"{reserve + GiB:,} bytes including reserve required; "
-            f"{resources.ram_available_bytes:,} available"
-        )
+    build_limit, build_jobs = _build_budget(
+        resources.ram_available_bytes, settings.remote_ram_reserve_bytes
+    )
     disk_required = max(settings.disk_reserve_bytes, 20 * GiB) + 8 * GiB
     if resources.disk_free_bytes < disk_required:
         raise ValueError(
@@ -521,7 +534,7 @@ def _bounded_local_build(
     present = subprocess.run(["docker", "buildx", "inspect", builder], capture_output=True)
     if present.returncode == 0:
         _run(["docker", "buildx", "rm", "--keep-state", builder])
-    limit = str(min(headroom, 2 * GiB))
+    limit = str(build_limit)
     _run(
         [
             "docker",
@@ -541,7 +554,10 @@ def _bounded_local_build(
     )
     try:
         _run(
-            compose + ["build", "--builder", builder, "worker"], timeout=build_timeout, stream=True
+            compose
+            + ["build", "--builder", builder, "--build-arg", f"BUILD_JOBS={build_jobs}", "worker"],
+            timeout=build_timeout,
+            stream=True,
         )
     finally:
         _run(["docker", "buildx", "stop", builder])

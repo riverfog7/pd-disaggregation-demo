@@ -45,7 +45,14 @@ with memory+swap equal to memory (no container swap). Deployment refuses build
 headroom below 1GiB above that reserve and disk below 28GiB. The engine admission
 check separately enforces host, cgroup, GPU and model/state/compute budgets.
 A dedicated persistent `docker-container` BuildKit builder also has a hard RAM
-cap of `min(host_available - 2GiB, 2GiB)`, equal memory+swap limit, two CPU quota,
+cap of `min(host_available - reserve, 2GiB)` and one compiler job when
+constrained. At least `reserve + 5GiB` available RAM enables two compiler jobs
+with a 4GiB builder cap: a 2GiB minimum reserve plus another 1GiB margin remains
+for host fluctuations. With default reserves the threshold is exactly 7GiB;
+6GiB available still uses one job. Larger configured reserves raise this
+threshold. Both remote deployment and local Linux launch use the same policy
+function against a fresh RAM measurement immediately before the build. The
+equal memory+swap limit (no container swap), two CPU quota,
 and `[worker.oci] max-parallelism=1`. Compose uses that explicit builder; the
 user default builder is not changed. Builder registration is refreshed with
 `--keep-state` to update limits while retaining its own cache. The builder name
@@ -132,4 +139,4 @@ Server/library publication into `/opt/llama` runs inside the same cache-mounted
 CUDA driver stubs are never copied into the runtime; the executable linker flag
 `-Wl,--allow-shlib-undefined` follows the pinned upstream CUDA recipe, and the
 actual driver libraries come from the host through CDI at runtime. Cache reuse
-does not relax the 2GiB host reserve or single-job compilation limit.
+does not relax the 2GiB host reserve or the selected one/two-job compilation limit.

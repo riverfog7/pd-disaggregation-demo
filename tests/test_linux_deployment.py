@@ -55,6 +55,9 @@ def test_deploy_git_only_transaction_and_shell_syntax(monkeypatch, tmp_path):
     assert script.index('compose build --builder "$builder" worker') < script.index("compose up -d")
     assert '"memory=$limit,memory-swap=$limit"' in script
     assert "max-parallelism = 1" in script
+    assert "def _build_budget(available: int, reserve: int)" in script
+    assert "build_limit, build_jobs = _build_budget(available," in script
+    assert "\'PDD_BUILD_JOBS\':str(build_jobs)" in script
     assert 'docker buildx stop "$builder"' in script
     assert "--use" not in script
     assert "rsync" not in script and "scp" not in script
@@ -84,7 +87,10 @@ def test_monitor_filters_own_project_and_service(monkeypatch):
     assert 'docker top "$id"' in scripts[0]
 
 
-def test_local_builder_is_capped_and_stopped_on_failure(monkeypatch, tmp_path):
+@pytest.mark.parametrize("available,limit,jobs", [(5, 2, 1), (7, 4, 2)])
+def test_local_builder_is_capped_and_stopped_on_failure(
+    monkeypatch, tmp_path, available, limit, jobs
+):
     from pd_disaggregation_demo.models import ResourceSnapshot
 
     monkeypatch.setattr(
@@ -94,7 +100,7 @@ def test_local_builder_is_capped_and_stopped_on_failure(monkeypatch, tmp_path):
             platform="linux",
             cpu_count=6,
             ram_total_bytes=16 * operations.GiB,
-            ram_available_bytes=5 * operations.GiB,
+            ram_available_bytes=available * operations.GiB,
             disk_free_bytes=100 * operations.GiB,
         ),
     )
@@ -111,13 +117,14 @@ def test_local_builder_is_capped_and_stopped_on_failure(monkeypatch, tmp_path):
         if args[:2] == ["compose-test", "build"]:
             assert kwargs["timeout"] == operations.DEFAULT_BUILD_TIMEOUT_SECONDS
             assert kwargs["stream"]
+            assert f"BUILD_JOBS={jobs}" in args
             raise RuntimeError("compile OOM")
         return ""
 
     monkeypatch.setattr(operations, "_run", run)
     with pytest.raises(RuntimeError, match="OOM"):
         operations._bounded_local_build(Settings(work_dir=tmp_path), ["compose-test"])
-    assert f"memory={2 * operations.GiB},memory-swap={2 * operations.GiB}" in calls[0]
+    assert f"memory={limit * operations.GiB},memory-swap={limit * operations.GiB}" in calls[0]
     assert "--use" not in calls[0]
     assert calls[-1][:3] == ["docker", "buildx", "stop"]
     assert (tmp_path / "buildkitd.toml").read_text() == "[worker.oci]\n  max-parallelism = 1\n"
@@ -243,3 +250,32 @@ def test_interrupted_first_remote_deploy_adopts_cache_without_current_symlink(
     )
     assert result.stdout.strip() == builder
     assert record.read_text().strip() == builder
+
+
+@pytest.mark.parametrize(
+    "available,reserve,limit,jobs",
+    [
+        (3 * operations.GiB, 2 * operations.GiB, operations.GiB, 1),
+        (6 * operations.GiB, 2 * operations.GiB, 2 * operations.GiB, 1),
+        (7 * operations.GiB - 1, 2 * operations.GiB, 2 * operations.GiB, 1),
+        (7 * operations.GiB, 2 * operations.GiB, 4 * operations.GiB, 2),
+        (12 * operations.GiB, 2 * operations.GiB, 4 * operations.GiB, 2),
+        (8 * operations.GiB, 4 * operations.GiB, 2 * operations.GiB, 1),
+        (9 * operations.GiB, 4 * operations.GiB, 4 * operations.GiB, 2),
+    ],
+)
+def test_build_budget_threshold_and_remote_policy_match(available, reserve, limit, jobs):
+    import inspect
+
+    # The SSH script receives this exact dependency-free function rather than
+    # maintaining a second independently changing policy implementation.
+    namespace = {"GiB": operations.GiB}
+    exec(inspect.getsource(operations._build_budget), namespace)
+    assert operations._build_budget(available, reserve) == (limit, jobs)
+    assert namespace["_build_budget"](available, reserve) == (limit, jobs)
+    assert limit <= available - max(reserve, 2 * operations.GiB)
+
+
+def test_build_budget_never_borrows_host_reserve():
+    with pytest.raises(ValueError, match="Insufficient RAM"):
+        operations._build_budget(3 * operations.GiB - 1, 0)
