@@ -64,20 +64,25 @@ from pd_disaggregation_demo.config import Settings
 from pd_disaggregation_demo.models import GenerationRequest, RuntimeProfile
 from pd_disaggregation_demo.pipeline import Pipeline
 
+
 async def main():
     pipeline = Pipeline(Settings(), RuntimeProfile(model_id="qwen3.5-0.8b"))
     try:
         await pipeline.start()
-        async for event in pipeline.generate(GenerationRequest(
-            prompt="Explain the difference between prefill and decode.",
-            mode="split", max_tokens=128,
-        )):
+        async for event in pipeline.generate(
+            GenerationRequest(
+                prompt="Explain the difference between prefill and decode.",
+                mode="split",
+                max_tokens=128,
+            )
+        ):
             if event.kind == "token":
                 print(event.text, end="", flush=True)
             elif event.result:
                 print(event.result.metrics.model_dump())
     finally:
         await pipeline.close()
+
 
 asyncio.run(main())
 ```
