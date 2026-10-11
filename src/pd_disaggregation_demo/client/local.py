@@ -69,6 +69,9 @@ class LocalClient:
     async def configure(self, profile: RuntimeProfile) -> dict[str, Any]:
         return await self._json("POST", "/configure", profile.model_dump(mode="json"))
 
+    async def health(self) -> dict[str, Any]:
+        return await self._json("GET", "/health")
+
     async def cancel(self) -> dict[str, Any]:
         response = await self._client.post("cancel", json={}, timeout=10)
         response.raise_for_status()
