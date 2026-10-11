@@ -547,8 +547,8 @@ name = "httpcore2"
 version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cb/f3/1db7aa2bc2524062192bb0e0323969492d1883152a232fe36eea65f4e35c/httpcore2-2.13.1.tar.gz", hash = "sha256:e0aa977abe17e69a3b820a24542a6fa88702676d83880b8d194dcd18408e5103", size = 68071 }
 wheels = [
@@ -1325,6 +1325,7 @@ dependencies = [
     { name = "httpx" },
     { name = "huggingface-hub" },
     { name = "nvidia-ml-py", marker = "sys_platform == 'linux'" },
+    { name = "plotly" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -1335,7 +1336,6 @@ dependencies = [
 [package.optional-dependencies]
 mac = [
     { name = "gradio" },
-    { name = "plotly" },
 ]
 
 [package.dev-dependencies]
@@ -1352,11 +1352,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
-    { name = "gradio", marker = "extra == 'mac'", specifier = ">=5.49" },
+    { name = "gradio", marker = "extra == 'mac'", specifier = ">=6.30" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "huggingface-hub", specifier = ">=0.34" },
     { name = "nvidia-ml-py", marker = "sys_platform == 'linux'", specifier = ">=12.570" },
-    { name = "plotly", marker = "extra == 'mac'", specifier = ">=6.0" },
+    { name = "plotly", specifier = ">=7.1" },
     { name = "psutil", specifier = ">=7.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },

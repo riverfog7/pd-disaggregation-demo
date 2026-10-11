@@ -22,10 +22,11 @@ dependencies = [
     "typer>=0.20.0",
     "uvicorn>=0.35",
     "nvidia-ml-py>=12.570; sys_platform == 'linux'",
+    "plotly>=7.1",
 ]
 
 [project.optional-dependencies]
-mac = ["gradio>=5.49", "plotly>=6.0"]
+mac = ["gradio>=6.30"]
 
 [project.scripts]
 pd-demo = "pd_disaggregation_demo.cli:main"
