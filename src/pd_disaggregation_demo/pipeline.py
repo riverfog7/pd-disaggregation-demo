@@ -54,6 +54,9 @@ class Pipeline:
             remote = {"status": "unavailable", "error": str(exc)}
         return {**local, "local": local, "remote": remote}
 
+    async def format_chat(self, messages: list[dict]) -> str:
+        return await self.runtime.format_chat(messages)
+
     async def tokenize(self, prompt: str) -> list[int]:
         return await self.runtime.tokenize(prompt)
 
@@ -88,8 +91,9 @@ class Pipeline:
             manifest = await self.remote.prefill(tokens)
             artifact, transfer_ms = await self.remote.download(manifest, self.fingerprint)
             return artifact, transfer_ms
-        except asyncio.CancelledError:
-            await self.remote.cancel()
+        except BaseException:
+            with contextlib.suppress(Exception):
+                await self.remote.cancel()
             raise
         finally:
             self._remote_active = False

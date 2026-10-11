@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import httpx
@@ -110,6 +111,11 @@ async def native(tmp_path):
     settings = Settings(cache_dir=tmp_path / "cache", work_dir=tmp_path / "work")
     runtime = LlamaRuntime(settings, backend="metal")
     runtime.fingerprint = fingerprint()
+
+    async def snapshot():
+        return {"ram_available_bytes": 1024**3}
+
+    runtime._snapshot = snapshot
     runtime._slots_dir.mkdir(parents=True)
     server = NativeServer(runtime)
     runtime._client = httpx.AsyncClient(
@@ -266,3 +272,156 @@ async def test_pipeline_cancel_waits_for_slot_cleanup(tmp_path):
     assert cleaned.is_set()
     assert not pipeline._lock.locked()
     await pipeline.close()
+
+
+async def test_native_cancel_releases_slot_and_cleans_state(native):
+    runtime, server = native
+    started = asyncio.Event()
+    handler = server.handle
+
+    async def blocked(request):
+        if request.url.path == "/completion":
+            started.set()
+            await asyncio.Event().wait()
+        return await handler(request)
+
+    await runtime._client.aclose()
+    runtime._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(blocked), base_url="http://native"
+    )
+    task = asyncio.create_task(runtime.prefill([1, 2, 3, 4]))
+    await started.wait()
+    await runtime.cancel()
+    assert task.cancelled()
+    assert not runtime._lock.locked()
+    assert runtime._active is None
+    assert server.prefix == []
+    assert list(runtime._slots_dir.iterdir()) == []
+
+
+async def test_split_preserves_canonical_tokens_and_reports_client_ttft(native):
+    runtime, server = native
+    # Simulate CUDA export using the same slot file format as the mocked Metal engine.
+    exported = await runtime.prefill([1, 2, 3, 4])
+    exported.manifest.source_backend = "cuda"
+    pipeline = Pipeline(runtime.settings)
+    await pipeline.remote.close()
+    pipeline.runtime = runtime
+    pipeline.remote.profile = RuntimeProfile(gpu_layers=12, cpu_ffn=8)
+    deleted = []
+    transferred = exported.state_path.read_bytes()
+    health = {
+        "status": "ready",
+        "profile": pipeline.remote.profile.model_dump(),
+    }
+
+    async def worker(request):
+        body = json.loads(request.content) if request.content else {}
+        if request.url.path == "/health":
+            return httpx.Response(200, json=health)
+        if request.url.path == "/prefill":
+            assert body["token_ids"] == [1, 2, 3, 4]
+            await asyncio.sleep(0.02)
+            return httpx.Response(200, json=exported.manifest.model_dump(mode="json"))
+        if request.method == "DELETE":
+            deleted.append(request.url.path)
+            return httpx.Response(200, json={"deleted": True})
+        assert request.url.path.endswith("/state")
+        return httpx.Response(200, content=transferred)
+
+    # The local downloaded artifact must be a different directory from the remote artifact.
+    shutil.rmtree(exported.state_path.parent)
+    pipeline.remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(worker), base_url="http://worker"
+    )
+    events = [
+        event
+        async for event in pipeline.generate(
+            GenerationRequest(
+                token_ids=[1, 2, 3, 4],
+                mode="split",
+                max_tokens=2,
+            )
+        )
+    ]
+    result = events[-1].result
+    assert result.mode == "split"
+    assert result.metrics.ttft_ms >= 20
+    assert result.metrics.total_ms >= result.metrics.ttft_ms
+    assert result.metrics.transfer_mbps > 0
+    assert result.remote_profile.gpu_layers == 12
+    assert result.remote_profile.cpu_ffn == 8
+    assert result.metrics.memory["before"]["ram_available_bytes"] == 1024**3
+    assert deleted == [f"/artifacts/{exported.manifest.artifact_id}"]
+    assert not exported.state_path.parent.exists()
+    await pipeline.close()
+
+
+async def test_empty_text_token_still_starts_client_ttft(native):
+    runtime, server = native
+    handler = server.handle
+
+    async def empty_text(request):
+        response = await handler(request)
+        if request.url.path == "/completion" and json.loads(request.content).get("stream"):
+            stream = response.text.replace('"content": "hello"', '"content": ""')
+            return httpx.Response(200, text=stream)
+        return response
+
+    await runtime._client.aclose()
+    runtime._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(empty_text), base_url="http://native"
+    )
+    events = [event async for event in runtime.generate(GenerationRequest(token_ids=[1, 2]))]
+    first = next(event for event in events if event.kind == "token")
+    assert first.text == "" and first.token_id == 77
+    assert events[-1].result.metrics.ttft_ms <= first.elapsed_ms
+
+
+async def test_configuration_failure_restores_prior_runtime(native):
+    runtime, _ = native
+    previous = runtime.profile
+    desired = previous.model_copy(update={"context_size": 16384})
+    attempts = []
+
+    async def close():
+        runtime._client = None
+
+    async def start():
+        attempts.append(runtime.profile.context_size)
+        if runtime.profile == desired:
+            from pd_disaggregation_demo.runtime.engine import AdmissionError
+
+            raise AdmissionError("Memory admission refused: reserve")
+        runtime._client = httpx.AsyncClient(base_url="http://native")
+
+    runtime.close = close
+    runtime.start = start
+    with pytest.raises(RuntimeError, match="Memory admission"):
+        await runtime.configure(desired)
+    assert runtime.profile == previous
+    assert runtime._client is not None
+    assert attempts == [16384, 8192]
+    assert not runtime._lock.locked()
+    await runtime._client.aclose()
+
+
+async def test_remote_admission_error_has_explicit_type(tmp_path):
+    from pd_disaggregation_demo.runtime.engine import AdmissionError
+
+    remote = RemoteWorker(Settings(work_dir=tmp_path))
+    await remote._client.aclose()
+    remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                422,
+                json={
+                    "detail": {"code": "admission_refused", "message": "context exceeds reserve"},
+                },
+            )
+        ),
+        base_url="http://worker",
+    )
+    with pytest.raises(AdmissionError, match="context exceeds"):
+        await remote._json("POST", "/configure", {})
+    await remote.close()

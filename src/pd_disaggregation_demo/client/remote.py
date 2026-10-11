@@ -27,6 +27,12 @@ class RemoteWorker:
 
     async def _json(self, method: str, path: str, payload: dict | None = None) -> dict:
         response = await self._client.request(method, path, json=payload)
+        if response.status_code == 422:
+            detail = response.json().get("detail")
+            if isinstance(detail, dict) and detail.get("code") == "admission_refused":
+                from ..runtime.engine import AdmissionError
+
+                raise AdmissionError(detail.get("message", "Remote memory admission refused"))
         response.raise_for_status()
         return response.json()
 

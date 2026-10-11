@@ -34,6 +34,10 @@ def elapsed_ms(start: float) -> float:
     return (time.perf_counter() - start) * 1000
 
 
+class AdmissionError(RuntimeError):
+    """Requested model/profile exceeds the measured memory or disk reserves."""
+
+
 class LlamaRuntime:
     def __init__(
         self,
@@ -99,6 +103,7 @@ class LlamaRuntime:
             "--slots",
             "--no-webui",
             "--no-context-shift",
+            "--jinja",
             "--spec-type",
             "none",
             "--device",
@@ -120,7 +125,7 @@ class LlamaRuntime:
             check_admission, self.settings, self.profile, model, self.backend
         )
         if not self._admission.allowed:
-            raise RuntimeError("Memory admission refused: " + "; ".join(self._admission.reasons))
+            raise AdmissionError("Memory admission refused: " + "; ".join(self._admission.reasons))
         binary = await asyncio.to_thread(ensure_engine, self.settings, self.backend)
         model_path = await asyncio.to_thread(ensure_model, self.settings, self.profile.model_id)
         self.fingerprint = RuntimeFingerprint(
@@ -189,9 +194,28 @@ class LlamaRuntime:
         async with self._lock:
             if profile == self.profile and self._client:
                 return
+            previous = self.profile
+            was_started = self._client is not None
             await self.close()
             self.profile = profile
-            await self.start()
+            try:
+                await self.start()
+            except Exception as rejected:
+                self.profile = previous
+                if was_started:
+                    try:
+                        await self.start()
+                    except Exception as rollback:
+                        raise RuntimeError(
+                            f"Configuration failed ({rejected}); prior runtime restart also failed"
+                        ) from rollback
+                raise
+
+    async def _snapshot(self) -> dict:
+        from ..resources import capture_resources
+
+        snapshot = await asyncio.to_thread(capture_resources, self.settings.cache_dir)
+        return snapshot.model_dump(mode="json")
 
     async def health(self) -> dict:
         native = None
@@ -211,6 +235,7 @@ class LlamaRuntime:
             "startup_ms": self.startup_ms,
             "admission": self._admission.model_dump() if self._admission else None,
             "native": native,
+            "resources": await self._snapshot(),
         }
 
     def _http(self) -> httpx.AsyncClient:
@@ -225,6 +250,13 @@ class LlamaRuntime:
         if "error" in value:
             raise RuntimeError(f"Native server error: {value['error']}")
         return value
+
+    async def format_chat(self, messages: list[dict]) -> str:
+        result = await self._post("/apply-template", {"messages": messages})
+        prompt = result.get("prompt")
+        if not isinstance(prompt, str):
+            raise RuntimeError("Native chat template did not return a prompt string")
+        return prompt
 
     async def tokenize(self, prompt: str) -> list[int]:
         result = await self._post("/tokenize", {"content": prompt, "add_special": True})
@@ -347,6 +379,7 @@ class LlamaRuntime:
             tokenize_ms=elapsed_ms(tokenize_start) if request.token_ids is None else 0
         )
         self._check_context(tokens, request.max_tokens)
+        metrics.memory["before"] = await self._snapshot()
         async with self._slot():
             await self._erase()
             async for event in self._completion(tokens, request, metrics, start, cached=False):
@@ -368,6 +401,7 @@ class LlamaRuntime:
             prefill_tps=m.timings.get("prefill_tps"),
             state_bytes=m.state_bytes,
         )
+        metrics.memory["before"] = await self._snapshot()
         async with self._slot():
             await self._erase()
             temporary = self._slots_dir / f"restore-{uuid4().hex}.bin"
@@ -465,9 +499,11 @@ class LlamaRuntime:
             metrics.prefill_tps = timing.get("prompt_per_second")
         metrics.decode_ms = timing.get("predicted_ms", 0)
         metrics.decode_tps = timing.get("predicted_per_second")
-        generated_tokens = int(timing.get("predicted_n", generated_tokens))
-        if first_token and last_token and last_token > first_token and generated_tokens > 1:
-            metrics.client_decode_tps = (generated_tokens - 1) / (last_token - first_token)
+        received_tokens = generated_tokens
+        generated_tokens = int(timing.get("predicted_n", received_tokens))
+        if first_token and last_token and last_token > first_token and received_tokens > 1:
+            metrics.client_decode_tps = (received_tokens - 1) / (last_token - first_token)
+        metrics.memory["after"] = await self._snapshot()
         metrics.total_ms = elapsed_ms(start)
         result = GenerationResult(
             mode="split" if cached else "local",
