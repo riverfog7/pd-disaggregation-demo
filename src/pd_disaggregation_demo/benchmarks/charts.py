@@ -423,7 +423,10 @@ def phases(report: BenchmarkReport):
 
 def transfer(report: BenchmarkReport):
     figure = make_subplots(
-        rows=1, cols=2, subplot_titles=("State size (MiB)", "Transfer rate (Mbit/s)")
+        rows=2,
+        cols=1,
+        vertical_spacing=0.20,
+        subplot_titles=("State size (MiB)", "Transfer rate (Mbit/s)"),
     )
     rows = report.summary
     x = [r["prompt_tokens"] for r in rows]
@@ -447,11 +450,20 @@ def transfer(report: BenchmarkReport):
             mode="lines+markers",
             name="Transfer Mbit/s",
         ),
-        row=1,
-        col=2,
+        row=2,
+        col=1,
     )
-    figure.update_layout(height=300, template="plotly_white")
-    figure.update_xaxes(title_text="Prompt tokens", type="log")
+    figure.update_layout(
+        height=640,
+        autosize=True,
+        template="plotly_white",
+        margin={"l": 60, "r": 20, "t": 50, "b": 160},
+        legend=_bottom_legend(),
+    )
+    figure.update_xaxes(type="log", tickangle=0, nticks=4, automargin=True)
+    figure.update_xaxes(title_text="Prompt tokens", row=2, col=1)
+    figure.update_yaxes(automargin=True, nticks=4)
+    figure.update_annotations(font_size=13)
     return figure
 
 
@@ -491,14 +503,59 @@ def memory_chart(report: BenchmarkReport):
     for name, values in series.items():
         figure.add_trace(
             go.Scatter(
-                x=[x for x, _ in values], y=[y for _, y in values], mode="lines+markers", name=name
+                x=[x for x, _ in values],
+                y=[y for _, y in values],
+                mode="lines+markers",
+                name=_memory_label(name),
+                legendgroup=name,
+                meta={"metric": name},
+                hovertemplate=(
+                    "%{meta.metric}<br>Completed request %{x}<br>%{y:.3f} GiB<extra></extra>"
+                ),
             )
         )
     figure.update_layout(
-        title="Memory snapshots and sampled peaks (short transients may be missed)",
+        title={
+            "text": "Memory snapshots / sampled peaks<br><sup>short transients may be missed</sup>",
+            "font": {"size": 16},
+        },
         template="plotly_white",
-        height=350,
+        height=520,
+        autosize=True,
+        margin={"l": 60, "r": 20, "t": 80, "b": 190},
+        legend=_bottom_legend(),
         xaxis_title="Completed request",
         yaxis_title="GiB",
+        xaxis={"tickangle": 0, "nticks": 5, "automargin": True},
+        yaxis={"nticks": 4, "automargin": True},
     )
     return figure
+
+
+def _memory_label(name: str) -> str:
+    scopes = {"before": "Before", "after": "After", "peak": "Peak", "remote_prefill_peak": "Remote"}
+    metrics = {
+        "process_rss": "RSS",
+        "native_process_rss": "Native RSS",
+        "process_rss_max": "RSS max",
+        "native_process_rss_max": "Native RSS max",
+        "ram_total": "RAM total",
+        "ram_available": "RAM available",
+        "ram_available_min": "RAM avail min",
+        "gpu_total": "GPU total",
+        "gpu_free": "GPU free",
+        "gpu_used": "GPU used",
+        "gpu_free_min": "GPU free min",
+        "gpu_used_max": "GPU used max",
+        "swap_used": "Swap used",
+        "swap_used_max": "Swap max",
+        "metal_recommended": "Metal budget",
+        "cgroup_memory_limit": "Cgroup limit",
+        "cgroup_memory_usage": "Cgroup usage",
+    }
+    parts = name.split(".")
+    metric = parts[-1].removesuffix("_bytes")
+    label = metrics.get(metric, metric.replace("_", " "))
+    if len(parts) > 1:
+        label = f"{scopes.get(parts[0], parts[0])} · {label}"
+    return label if len(label) <= 24 else label[:23] + "…"

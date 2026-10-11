@@ -631,7 +631,7 @@ async def test_memory_sampled_peaks_and_transfer_units(tmp_path):
         "peak": {"process_rss_max_bytes": 2 * 1024**3, "sample_count": 3, "sample_period_ms": 100},
     }
     figure = memory_chart(report)
-    traces = {trace.name: trace for trace in figure.data}
+    traces = {trace.meta["metric"]: trace for trace in figure.data}
     assert list(traces["peak.process_rss_max_bytes"].y) == [2]
     assert not any("disk_free" in name for name in traces)
     assert not any("gpu_used" in name for name in traces)

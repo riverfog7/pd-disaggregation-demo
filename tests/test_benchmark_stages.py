@@ -6,9 +6,11 @@ import pytest
 from pd_disaggregation_demo.benchmarks.charts import (
     curves,
     latest_complete_pair,
+    memory_chart,
     phases,
     stage_comparison,
     stage_comparison_html,
+    transfer,
 )
 from pd_disaggregation_demo.benchmarks.models import (
     BenchmarkConfig,
@@ -224,3 +226,58 @@ def test_same_prefix_runs_have_independent_legend_groups_and_visible_ids(labels)
         f"{report.run_id}-modeled-1gbps" for report in reports
     }
     assert len({trace.name for trace in modeled}) == 2
+
+
+def test_transfer_panels_stack_without_changing_units_or_missing_values():
+    report = report_with_pair()
+    report.summary = [
+        {"prompt_tokens": 256, "split_state_bytes": 2 * 1024**2, "split_transfer_mbps": 42.5},
+        {"prompt_tokens": 512, "split_state_bytes": None, "split_transfer_mbps": None},
+    ]
+    figure = transfer(report)
+    assert list(figure.layout.xaxis.domain) == list(figure.layout.xaxis2.domain) == [0, 1]
+    assert figure.data[0].yaxis == "y"
+    assert figure.data[1].yaxis == "y2"
+    assert list(figure.data[0].y) == [2, None]
+    assert list(figure.data[1].y) == [42.5, None]
+    assert figure.layout.height >= 600
+    assert figure.layout.autosize and figure.layout.width is None
+    assert figure.layout.legend.orientation == "h"
+    assert figure.layout.legend.entrywidthmode == "fraction"
+    assert figure.layout.legend.y < 0
+    assert figure.layout.margin.b >= 160
+    assert figure.layout.xaxis.tickangle == 0
+
+
+def test_memory_short_legend_keeps_full_metric_identity_and_values_in_hover():
+    report = report_with_pair()
+    report.samples[0].result.metrics.memory = {
+        "before": {"process_rss_bytes": 1024**3, "native_process_rss_bytes": 2 * 1024**3},
+        "peak": {"process_rss_max_bytes": 3 * 1024**3},
+        "remote_prefill_peak": {"gpu_used_max_bytes": 4 * 1024**3},
+        "unusual_nested_peak_namespace": {
+            "cgroup_extraordinarily_long_memory_limit_bytes": 5 * 1024**3
+        },
+    }
+    figure = memory_chart(report)
+    traces = {trace.meta["metric"]: trace for trace in figure.data}
+    assert list(traces["before.process_rss_bytes"].y) == [1]
+    assert list(traces["before.native_process_rss_bytes"].y) == [2]
+    assert list(traces["peak.process_rss_max_bytes"].y) == [3]
+    assert list(traces["remote_prefill_peak.gpu_used_max_bytes"].y) == [4]
+    assert len(traces) == 5
+    for full_name, trace in traces.items():
+        assert trace.legendgroup == full_name
+        assert "%{meta.metric}" in trace.hovertemplate
+        assert "GiB" in trace.hovertemplate
+        assert len(trace.name) <= 24
+    assert figure.layout.autosize and figure.layout.width is None
+    assert figure.layout.height >= 500
+    assert figure.layout.legend.orientation == "h"
+    assert figure.layout.legend.entrywidthmode == "fraction"
+    assert figure.layout.legend.entrywidth == 0.5
+    assert figure.layout.legend.maxheight == 120
+    assert figure.layout.legend.y < 0
+    assert figure.layout.margin.b >= 190
+    assert figure.layout.xaxis.tickangle == 0
+    assert "short transients may be missed" in figure.layout.title.text
