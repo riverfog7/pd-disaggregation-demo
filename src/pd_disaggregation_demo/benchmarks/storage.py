@@ -86,7 +86,7 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
         writer.writeheader()
         writer.writerows(rows)
     os.replace(csv_path.with_suffix(".csv.tmp"), csv_path)
-    from .charts import curves, memory_chart, phases, transfer
+    from .charts import curves, memory_chart, phases, stage_comparison_html, transfer
 
     figures = [curves([report]), phases(report), transfer(report), memory_chart(report)]
     from plotly.io import to_html
@@ -106,7 +106,7 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
 <style>body{{font:16px system-ui;max-width:1400px;margin:2rem auto;padding:0 1rem}}
 pre{{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f5f7;padding:1rem}}</style></head>
 <body><h1>{title}</h1><p>Status: {report.status} · {report.created_at.isoformat()}</p>
-<ul>{notes}</ul>{chart_html}<h2>Skipped points</h2><ul>{skipped}</ul>
+<ul>{notes}</ul>{stage_comparison_html(report)}{chart_html}<h2>Skipped points</h2><ul>{skipped}</ul>
 <h2>Failures</h2><ul>{errors}</ul><details><summary>Full report, environment and memory</summary>
 <pre>{escaped}</pre></details></body></html>"""
     html_path = Path(report.exports["html"])

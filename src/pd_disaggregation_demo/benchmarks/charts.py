@@ -1,19 +1,165 @@
+import html
 import json
+import math
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-from .models import BenchmarkReport
+from .models import BenchmarkReport, BenchmarkSample
 
 COLORS = {"local": "#247BA0", "split": "#F18F01"}
 PHASES = {
-    "tokenize_ms": "Tokenize",
+    "tokenize_ms": "Tokenization",
     "prefill_ms": "Prefill",
     "export_ms": "Save",
     "transfer_ms": "Transfer",
     "restore_ms": "Restore",
-    "final_prompt_ms": "Final token",
+    "final_prompt_ms": "Final prompt token",
 }
+
+
+def latest_complete_pair(
+    report: BenchmarkReport,
+) -> tuple[BenchmarkSample, BenchmarkSample] | None:
+    pairs = {}
+    latest = None
+    for sample in report.samples:
+        if not sample.result.success:
+            continue
+        pair = pairs.setdefault((sample.prompt_tokens, sample.repeat), {})
+        pair[sample.result.mode] = sample
+        if "local" in pair and "split" in pair:
+            latest = pair["local"], pair["split"]
+    return latest
+
+
+def _duration(value):
+    return (
+        value if isinstance(value, (int, float)) and math.isfinite(value) and value >= 0 else None
+    )
+
+
+def _ttft_overhead(metrics):
+    ttft = _duration(metrics.ttft_ms)
+    stages = [_duration(getattr(metrics, name)) for name in PHASES]
+    if ttft is None or any(value is None for value in stages):
+        return None
+    return _duration(ttft - sum(stages))
+
+
+def _after_first_token(metrics):
+    ttft, total = _duration(metrics.ttft_ms), _duration(metrics.total_ms)
+    return _duration(total - ttft) if ttft is not None and total is not None else None
+
+
+def stage_comparison(report: BenchmarkReport) -> tuple[str, list[list], list[str]]:
+    """Compare raw stage timers within one exact pair; never sum mode medians."""
+    pair = latest_complete_pair(report)
+    notes = [
+        "Canonical corpus tokenization prepares identical token IDs once per prompt size, "
+        "outside timed pairs. Per-request tokenization is normally 0 ms when IDs are supplied."
+    ]
+    rows = []
+    if pair is None:
+        caption = "Waiting for a complete local/split pair; unmatched requests are not combined."
+        size = None
+    else:
+        local, split = pair
+        size = local.prompt_tokens
+        order = "local → split" if local.order < split.order else "split → local"
+        caption = f"{size:,} prompt tokens · pair {local.repeat + 1} · {order}"
+        if all(report.samples[-1] is not sample for sample in pair):
+            caption += " · retaining this pair while its newer replacement is incomplete"
+        metrics = local.result.metrics, split.result.metrics
+        rows = [
+            [label, *(_duration(getattr(value, name)) for value in metrics)]
+            for name, label in PHASES.items()
+        ]
+        rows.extend(
+            [
+                ["Unattributed TTFT overhead", *(_ttft_overhead(value) for value in metrics)],
+                [
+                    "TTFT subtotal · through first token",
+                    *(_duration(value.ttft_ms) for value in metrics),
+                ],
+                [
+                    "After first token · client elapsed",
+                    *(_after_first_token(value) for value in metrics),
+                ],
+                [
+                    "Total request · client elapsed",
+                    *(_duration(value.total_ms) for value in metrics),
+                ],
+                [
+                    "Native decode · engine timing (not additive)",
+                    *(_duration(value.decode_ms) for value in metrics),
+                ],
+            ]
+        )
+        notes.append(
+            "TTFT is the measured time to the first token. After-first-token elapsed is "
+            "total − TTFT and includes streaming and completion overhead. Native decode uses "
+            "the engine's clock and overlaps this accounting; do not add it to the total."
+        )
+        if any(_ttft_overhead(value) is None for value in metrics):
+            notes.append(
+                "Some stage timers exceed measured TTFT or are unavailable. Their residual "
+                "cannot be attributed; the timeline uses measured TTFT for that request "
+                "instead of adding incompatible timers. Raw stage values remain above."
+            )
+    configurations = report.environment.get("configurations", [])
+    preparation = next(
+        (
+            item
+            for item in reversed(configurations)
+            if size is None or item.get("prompt_tokens") == size
+        ),
+        None,
+    )
+    if preparation:
+        observed = []
+        for key, label in (
+            ("corpus_tokenize_ms", "corpus tokenization"),
+            ("startup_ms", "local configuration/startup"),
+        ):
+            value = _duration(preparation.get(key))
+            if value is not None:
+                observed.append(f"{label} {value:,.2f} ms")
+        if observed:
+            notes.append("Observed preparation outside timed pairs: " + "; ".join(observed) + ".")
+    return caption, rows, notes
+
+
+def stage_comparison_html(report: BenchmarkReport) -> str:
+    caption, rows, notes = stage_comparison(report)
+    body = "".join(
+        '<tr style="border-bottom:1px solid #ddd">'
+        f'<th scope="row" style="text-align:left;padding:7px">{html.escape(label)}</th>'
+        + "".join(
+            f'<td style="text-align:right;padding:7px;font-variant-numeric:tabular-nums">'
+            f"{value:,.2f}</td>"
+            if value is not None
+            else '<td style="text-align:right;padding:7px">Unavailable</td>'
+            for value in values
+        )
+        + "</tr>"
+        for label, *values in rows
+    )
+    table = (
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
+        '<thead><tr><th style="text-align:left;padding:7px">Stage</th>'
+        '<th style="text-align:right;padding:7px;color:#247BA0">Local (ms)</th>'
+        '<th style="text-align:right;padding:7px;color:#F18F01">Split (ms)</th>'
+        f"</tr></thead><tbody>{body}</tbody></table></div>"
+        if rows
+        else ""
+    )
+    return (
+        "<section><h3>Stage durations · latest complete pair</h3>"
+        f"<p><strong>{html.escape(caption)}</strong></p>{table}"
+        + "".join(f"<p>{html.escape(note)}</p>" for note in notes)
+        + "</section>"
+    )
 
 
 def curves(reports: list[BenchmarkReport]):
@@ -79,43 +225,71 @@ def curves(reports: list[BenchmarkReport]):
 
 def phases(report: BenchmarkReport):
     figure = go.Figure()
+    labels = [
+        f"{s.prompt_tokens:,} · pair {s.repeat + 1} · {s.result.mode}" for s in report.samples
+    ]
+    overhead = [_ttft_overhead(sample.result.metrics) for sample in report.samples]
     for name, label in PHASES.items():
         figure.add_trace(
             go.Bar(
-                y=[
-                    f"{s.prompt_tokens:,} · pair {s.repeat + 1} · {s.result.mode}"
-                    for s in report.samples
+                y=labels,
+                x=[
+                    getattr(sample.result.metrics, name) if residual is not None else None
+                    for sample, residual in zip(report.samples, overhead, strict=True)
                 ],
-                x=[getattr(s.result.metrics, name) for s in report.samples],
-                name=label,
+                name=f"TTFT · {label}",
                 orientation="h",
+                hovertemplate=f"{label}: %{{x:.2f}} ms<extra></extra>",
             )
         )
     # Reported TTFT may also include request/network/scheduling overhead. Keep this visible.
     figure.add_trace(
         go.Bar(
-            y=[
-                f"{s.prompt_tokens:,} · pair {s.repeat + 1} · {s.result.mode}"
-                for s in report.samples
-            ],
-            x=[
-                max(
-                    0,
-                    (s.result.metrics.ttft_ms or 0)
-                    - sum(getattr(s.result.metrics, name) for name in PHASES),
-                )
-                for s in report.samples
-            ],
-            name="Other TTFT overhead",
+            y=labels,
+            x=overhead,
+            name="TTFT · Unattributed overhead",
             orientation="h",
+            hovertemplate="Unattributed TTFT overhead: %{x:.2f} ms<extra></extra>",
+        )
+    )
+    if any(value is None for value in overhead):
+        figure.add_trace(
+            go.Bar(
+                y=labels,
+                x=[
+                    _duration(sample.result.metrics.ttft_ms) if residual is None else None
+                    for sample, residual in zip(report.samples, overhead, strict=True)
+                ],
+                name="Measured TTFT · incompatible stage timers",
+                orientation="h",
+            )
+        )
+    figure.add_trace(
+        go.Bar(
+            y=labels,
+            x=[_after_first_token(sample.result.metrics) for sample in report.samples],
+            name="After first token · client elapsed",
+            marker_color="#64748B",
+            orientation="h",
+            hovertemplate="After first token: %{x:.2f} ms<extra></extra>",
+        )
+    )
+    figure.add_trace(
+        go.Scatter(
+            y=labels,
+            x=[_duration(sample.result.metrics.ttft_ms) for sample in report.samples],
+            name="First token / TTFT boundary",
+            mode="markers",
+            marker={"symbol": "line-ns-open", "size": 18, "color": "#111"},
+            hovertemplate="Measured TTFT: %{x:.2f} ms<extra></extra>",
         )
     )
     figure.update_layout(
         barmode="stack",
         height=max(300, min(1500, 24 * len(report.samples) + 130)),
         template="plotly_white",
-        title="First-token phase timeline (measured ms)",
-        xaxis_title="Time (ms)",
+        title="Whole-request timeline · first token boundary separates TTFT and later elapsed time",
+        xaxis_title="Elapsed time (ms)",
         yaxis={"autorange": "reversed"},
     )
     return figure

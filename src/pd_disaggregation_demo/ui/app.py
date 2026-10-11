@@ -5,7 +5,14 @@ import json
 import gradio as gr
 
 from ..benchmarks import BenchmarkConfig, list_reports, run_benchmark
-from ..benchmarks.charts import curves, memory_chart, memory_rows, phases, transfer
+from ..benchmarks.charts import (
+    curves,
+    memory_chart,
+    memory_rows,
+    phases,
+    stage_comparison_html,
+    transfer,
+)
 from ..models import GenerationRequest, RuntimeProfile
 
 MODELS = [
@@ -163,6 +170,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                             report.model_dump(mode="json"),
                             list(report.exports.values()) or None,
                             gr.update(choices=history_choices()),
+                            stage_comparison_html(report),
                             gr.update(interactive=report.status != "running"),
                         )
                     except (GeneratorExit, asyncio.CancelledError):
@@ -173,7 +181,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 raise
             yield (
                 f"**Failed** · {exc}",
-                *(gr.skip() for _ in range(10)),
+                *(gr.skip() for _ in range(11)),
                 gr.update(interactive=True),
             )
         finally:
@@ -288,6 +296,10 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 stop = gr.Button("Cancel active request", variant="stop")
             status = gr.Markdown("Ready. No measurements yet.")
             cards = gr.HTML("<p>TTFT, prefill, decode and handoff measurements appear here.</p>")
+            stage_times = gr.HTML(
+                "<h3>Stage durations · latest complete pair</h3>"
+                "<p>Waiting for a complete local/split pair. Values will appear here in ms.</p>"
+            )
             chart = gr.Plot(label="Latency and throughput")
             gr.Markdown(
                 "Medians summarize each mode. Speedup uses complete within-repeat pairs with "
@@ -300,7 +312,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 interactive=False,
                 label="Paired result summary",
             )
-            with gr.Tab("First-token timeline"):
+            with gr.Tab("Whole-request timeline"):
                 timeline = gr.Plot()
             with gr.Tab("State transfer"):
                 transfer_plot = gr.Plot()
@@ -354,6 +366,7 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 details,
                 downloads,
                 history,
+                stage_times,
                 run,
             ],
             concurrency_id="demo-runtime",

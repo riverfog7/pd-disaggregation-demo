@@ -340,6 +340,10 @@ async def test_ui_async_callback_outputs_and_gradio6_history(tmp_path):
         updates.append(update)
     assert "completed" in updates[-1][0]
     assert len(updates[-1][9]) == 3
+    assert "Waiting for a complete" in updates[0][11]
+    assert "256 prompt tokens · pair 1" in updates[-1][11]
+    assert "Native decode · engine timing (not additive)" in updates[-1][11]
+    assert updates[-1][11] in Path(updates[-1][9][-1]).read_text()
 
 
 async def test_ui_closing_callback_saves_cancelled_report_and_releases_session(tmp_path):
