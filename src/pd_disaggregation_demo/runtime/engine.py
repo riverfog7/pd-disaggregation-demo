@@ -12,6 +12,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import httpx
+import psutil
 
 from ..artifacts import sha256_file, validate_artifact, write_manifest
 from ..config.settings import Settings
@@ -215,7 +216,16 @@ class LlamaRuntime:
         from ..resources import capture_resources
 
         snapshot = await asyncio.to_thread(capture_resources, self.settings.cache_dir)
-        return snapshot.model_dump(mode="json")
+        data = snapshot.model_dump(mode="json")
+        native_rss = 0
+        if self._process and self._process.returncode is None:
+            try:
+                native_rss = psutil.Process(self._process.pid).memory_info().rss
+            except psutil.NoSuchProcess:
+                pass
+        data["native_process_rss_bytes"] = native_rss
+        data["process_rss_bytes"] += native_rss
+        return data
 
     async def health(self) -> dict:
         native = None
