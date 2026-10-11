@@ -119,3 +119,17 @@ existing owned SHA builder even when `.deploy/current` was never created: builde
 selection scans owned Buildx names and persists the adopted cache identity.
 Changing this setting in source does not change a deployment already running
 under an earlier deadline.
+
+The engine build directory uses a locked
+[BuildKit cache mount](https://docs.docker.com/reference/dockerfile/#run---mounttypecache) scoped to the
+pinned llama.cpp revision, CUDA 12.8.1, SM75, Ubuntu 24.04 and the explicit release
+build configuration. Compilation outputs survive a failed `RUN` and can be
+reused by a retry on the same owned builder, subject to BuildKit cache eviction.
+The configuration suffix must change when changing ABI or build flags. This
+cache cannot recover outputs from builds made before the mount existed.
+Server/library publication into `/opt/llama` runs inside the same cache-mounted
+`RUN`, so the final image receives the binaries through its ordinary image layer.
+CUDA driver stubs are never copied into the runtime; the executable linker flag
+`-Wl,--allow-shlib-undefined` follows the pinned upstream CUDA recipe, and the
+actual driver libraries come from the host through CDI at runtime. Cache reuse
+does not relax the 2GiB host reserve or single-job compilation limit.

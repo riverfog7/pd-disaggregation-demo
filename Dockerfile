@@ -10,7 +10,9 @@ RUN git init /src/llama.cpp && cd /src/llama.cpp \
     && git remote add origin https://github.com/ggml-org/llama.cpp.git \
     && git fetch --depth 1 origin "$ENGINE_REVISION" && git checkout --detach FETCH_HEAD \
     && test "$(git rev-parse HEAD)" = "$ENGINE_REVISION"
-RUN cmake -S /src/llama.cpp -B /src/llama.cpp/build -G Ninja \
+# Keep failed compilation outputs across retries; bump the config suffix when changing ABI/build flags.
+RUN --mount=type=cache,id=pd-demo-llama-${ENGINE_REVISION}-cuda12.8.1-sm75-ubuntu24.04-release-nativeoff-cudaon-testsoff-serveron-curloff-allowshlib-v1,target=/src/llama.cpp/build,sharing=locked \
+    cmake -S /src/llama.cpp -B /src/llama.cpp/build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=ON \
     -DCMAKE_CUDA_ARCHITECTURES=75 -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_SERVER=ON -DLLAMA_CURL=OFF \
