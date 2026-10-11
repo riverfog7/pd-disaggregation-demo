@@ -186,7 +186,7 @@ def worker():
     from .backend.app import create_worker_app
 
     settings = _settings()
-    profile = RuntimeProfile.model_validate_json(os.environ.get("PDD_WORKER_PROFILE", "{}"))
+    profile = RuntimeProfile.model_validate_json((os.environ.get("PDD_WORKER_PROFILE") or "{}"))
     uvicorn.run(create_worker_app(settings, profile), host="0.0.0.0", port=settings.worker_port)
 
 
