@@ -16,10 +16,23 @@ SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _run(
-    args: list[str], *, cwd: Path | None = None, input: str | None = None, timeout: float = 120
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    input: str | None = None,
+    timeout: float = 120,
+    stream: bool = False,
 ) -> str:
+    # Keep command data on stdout for JSON callers. Long build diagnostics go
+    # directly to stderr, allowing a terminal or redirected log to show progress.
     result = subprocess.run(
-        args, cwd=cwd, input=input, capture_output=True, text=True, timeout=timeout
+        args,
+        cwd=cwd,
+        input=input,
+        stdout=subprocess.PIPE,
+        stderr=None if stream else subprocess.PIPE,
+        text=True,
+        timeout=timeout,
     )
     if result.returncode:
         raise RuntimeError(
@@ -28,7 +41,7 @@ def _run(
     return result.stdout
 
 
-def _ssh(settings: Settings, script: str, *, timeout: float = 120) -> str:
+def _ssh(settings: Settings, script: str, *, timeout: float = 120, stream: bool = False) -> str:
     return _run(
         [
             "ssh",
@@ -41,6 +54,7 @@ def _ssh(settings: Settings, script: str, *, timeout: float = 120) -> str:
         ],
         input=script,
         timeout=timeout,
+        stream=stream,
     )
 
 
@@ -279,7 +293,7 @@ if [ -n "$prior" ] && [ "$prior" != "$release" ]; then ln -sfn "$prior" "$root/p
 ln -sfn "$release" "$root/current"
 trap - EXIT
 """
-    output = _ssh(settings, script, timeout=max(3600, health_timeout + 300))
+    output = _ssh(settings, script, timeout=max(3600, health_timeout + 300), stream=True)
     # Git/build progress can coexist with the final JSON health line.
     health = next(
         json.loads(line) for line in reversed(output.splitlines()) if line.startswith("{")
@@ -326,6 +340,7 @@ ln -sfn "$current" "$root/previous"
 trap - EXIT
 """,
         timeout=health_timeout + 120,
+        stream=True,
     )
     return {
         "health": next(
@@ -411,7 +426,7 @@ def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
         ]
     )
     try:
-        _run(compose + ["build", "--builder", builder, "worker"], timeout=3600)
+        _run(compose + ["build", "--builder", builder, "worker"], timeout=3600, stream=True)
     finally:
         _run(["docker", "buildx", "stop", builder])
 
@@ -419,7 +434,9 @@ def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
 def serve_linux(settings: Settings, profile: RuntimeProfile, detach: bool = True) -> dict:
     args = _local_compose(settings, profile)
     _bounded_local_build(settings, args)
-    _run(args + ["run", "--rm", "--no-deps", "models"], timeout=settings.request_timeout)
+    _run(
+        args + ["run", "--rm", "--no-deps", "models"], timeout=settings.request_timeout, stream=True
+    )
     up = ["up", "--no-build"] + (["-d"] if detach else []) + ["worker"]
     output = _run(args + up, timeout=3600)
     return {"status": "started", "output": output, "port": settings.worker_port}

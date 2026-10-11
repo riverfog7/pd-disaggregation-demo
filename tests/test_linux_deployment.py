@@ -124,3 +124,14 @@ def test_failed_manual_rollback_has_restore_trap(monkeypatch):
     assert "trap restore_current EXIT" in scripts[0]
     assert 'current_revision=$(basename "$current")' in scripts[0]
     assert scripts[0].rfind("trap - EXIT") > scripts[0].rfind("ln -sfn")
+
+
+def test_streaming_diagnostics_keeps_json_stdout_clean(capfd):
+    import sys
+
+    script = "import sys; print('build phase 1',file=sys.stderr,flush=True); print('{\"ok\":true}')"
+    output = operations._run([sys.executable, "-c", script], stream=True)
+    captured = capfd.readouterr()
+    assert output.strip() == '{"ok":true}'
+    assert captured.out == ""
+    assert captured.err.strip() == "build phase 1"
