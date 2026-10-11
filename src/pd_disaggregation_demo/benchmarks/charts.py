@@ -18,6 +18,22 @@ PHASES = {
 }
 
 
+def _bottom_legend():
+    # Fractional entry widths wrap into two columns as the Gradio panel resizes.
+    return {
+        "orientation": "h",
+        "traceorder": "normal",
+        "x": 0,
+        "xanchor": "left",
+        "y": -0.15,
+        "yanchor": "top",
+        "entrywidth": 0.5,
+        "entrywidthmode": "fraction",
+        "maxheight": 120,
+        "font": {"size": 11},
+    }
+
+
 def latest_complete_pair(
     report: BenchmarkReport,
 ) -> tuple[BenchmarkSample, BenchmarkSample] | None:
@@ -164,31 +180,33 @@ def stage_comparison_html(report: BenchmarkReport) -> str:
 
 def curves(reports: list[BenchmarkReport]):
     figure = make_subplots(
-        rows=2,
-        cols=2,
+        rows=4,
+        cols=1,
+        vertical_spacing=0.10,
         subplot_titles=(
             "Time to first token (ms)",
-            "TTFT speedup (local / split), 95% paired CI",
+            "TTFT speedup · 95% paired CI",
             "Prefill tokens/s",
             "Decode tokens/s",
         ),
     )
     for report in reports:
         rows = report.summary
-        prefix = report.config.label or report.run_id[:8]
+        full_prefix = report.config.label or report.run_id[:8]
+        prefix = full_prefix[:16] + ("…" if len(full_prefix) > 16 else "")
         x = [r["prompt_tokens"] for r in rows]
         for mode in ("local", "split"):
             for metric, row, col in (
                 ("ttft_ms", 1, 1),
-                ("prefill_tps", 2, 1),
-                ("decode_tps", 2, 2),
+                ("prefill_tps", 3, 1),
+                ("decode_tps", 4, 1),
             ):
                 figure.add_trace(
                     go.Scatter(
                         x=x,
                         y=[r.get(f"{mode}_{metric}") for r in rows],
                         mode="lines+markers",
-                        name=f"{prefix} · {mode}",
+                        name=f"{prefix} · {mode}" if len(reports) > 1 else mode.title(),
                         legendgroup=f"{prefix}-{mode}",
                         showlegend=(row, col) == (1, 1),
                         line={"color": COLORS[mode]},
@@ -205,21 +223,28 @@ def curves(reports: list[BenchmarkReport]):
                 x=x,
                 y=speed,
                 mode="lines+markers",
-                name=f"{prefix} · paired speedup",
+                name=f"{prefix} · speedup" if len(reports) > 1 else "Paired speedup",
                 error_y={"type": "data", "symmetric": False, "array": upper, "arrayminus": lower},
                 customdata=[r.get("pairs", 0) for r in rows],
                 hovertemplate=(
                     "%{x} prompt tokens<br>%{y:.3f}×<br>%{customdata} complete pairs<extra></extra>"
                 ),
             ),
-            row=1,
-            col=2,
+            row=2,
+            col=1,
         )
-    figure.add_hline(y=1, line_dash="dash", line_color="#777", row=1, col=2)
-    figure.update_xaxes(title_text="Prompt tokens", type="log")
+    figure.add_hline(y=1, line_dash="dash", line_color="#777", row=2, col=1)
+    figure.update_xaxes(type="log", tickangle=0, nticks=4, automargin=True)
+    figure.update_xaxes(title_text="Prompt tokens", row=4, col=1)
+    figure.update_yaxes(automargin=True, nticks=4)
     figure.update_layout(
-        height=620, template="plotly_white", margin={"l": 55, "r": 25, "t": 60, "b": 45}
+        height=1100,
+        autosize=True,
+        template="plotly_white",
+        margin={"l": 60, "r": 20, "t": 45, "b": 200},
+        legend={**_bottom_legend(), "y": -0.07},
     )
+    figure.update_annotations(font_size=13)
     return figure
 
 
@@ -237,7 +262,7 @@ def phases(report: BenchmarkReport):
                     getattr(sample.result.metrics, name) if residual is not None else None
                     for sample, residual in zip(report.samples, overhead, strict=True)
                 ],
-                name=f"TTFT · {label}",
+                name=label,
                 orientation="h",
                 hovertemplate=f"{label}: %{{x:.2f}} ms<extra></extra>",
             )
@@ -247,7 +272,7 @@ def phases(report: BenchmarkReport):
         go.Bar(
             y=labels,
             x=overhead,
-            name="TTFT · Unattributed overhead",
+            name="Other TTFT overhead",
             orientation="h",
             hovertemplate="Unattributed TTFT overhead: %{x:.2f} ms<extra></extra>",
         )
@@ -260,7 +285,7 @@ def phases(report: BenchmarkReport):
                     _duration(sample.result.metrics.ttft_ms) if residual is None else None
                     for sample, residual in zip(report.samples, overhead, strict=True)
                 ],
-                name="Measured TTFT · incompatible stage timers",
+                name="TTFT (unpartitioned)",
                 orientation="h",
             )
         )
@@ -268,7 +293,7 @@ def phases(report: BenchmarkReport):
         go.Bar(
             y=labels,
             x=[_after_first_token(sample.result.metrics) for sample in report.samples],
-            name="After first token · client elapsed",
+            name="After first token",
             marker_color="#64748B",
             orientation="h",
             hovertemplate="After first token: %{x:.2f} ms<extra></extra>",
@@ -278,7 +303,7 @@ def phases(report: BenchmarkReport):
         go.Scatter(
             y=labels,
             x=[_duration(sample.result.metrics.ttft_ms) for sample in report.samples],
-            name="First token / TTFT boundary",
+            name="First token / TTFT",
             mode="markers",
             marker={"symbol": "line-ns-open", "size": 18, "color": "#111"},
             hovertemplate="Measured TTFT: %{x:.2f} ms<extra></extra>",
@@ -286,11 +311,15 @@ def phases(report: BenchmarkReport):
     )
     figure.update_layout(
         barmode="stack",
-        height=max(300, min(1500, 24 * len(report.samples) + 130)),
+        height=max(480, min(1500, 24 * len(report.samples) + 280)),
+        autosize=True,
         template="plotly_white",
-        title="Whole-request timeline · first token boundary separates TTFT and later elapsed time",
+        title={"text": "Whole-request timeline", "font": {"size": 16}},
+        margin={"l": 115, "r": 20, "t": 50, "b": 190},
+        legend=_bottom_legend(),
         xaxis_title="Elapsed time (ms)",
-        yaxis={"autorange": "reversed"},
+        xaxis={"tickangle": 0, "nticks": 4, "automargin": True},
+        yaxis={"autorange": "reversed", "automargin": True},
     )
     return figure
 

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from pd_disaggregation_demo.benchmarks.charts import (
+    curves,
     latest_complete_pair,
     phases,
     stage_comparison,
@@ -128,7 +129,7 @@ def test_whole_request_timeline_totals_and_first_token_boundary():
     assert [sum(trace.x[index] for trace in bars) for index in (0, 1)] == [125, 85]
     after = next(trace for trace in bars if trace.name.startswith("After first token"))
     assert list(after.x) == [100, 50]
-    boundary = next(trace for trace in figure.data if trace.name == "First token / TTFT boundary")
+    boundary = next(trace for trace in figure.data if trace.name == "First token / TTFT")
     assert list(boundary.x) == [25, 35]
     assert not any("Native decode" in trace.name for trace in bars)
     assert "Whole-request timeline" in figure.layout.title.text
@@ -163,3 +164,25 @@ def test_missing_ttft_is_unavailable_in_table_and_timeline():
     assert values["Native decode · engine timing (not additive)"] == (101, None)
     boundary = next(trace for trace in phases(report).data if trace.type == "scatter")
     assert list(boundary.x) == [25, None]
+
+
+def test_charts_reserve_full_width_for_data_on_narrow_panels():
+    report = report_with_pair()
+    report.summary = [{"prompt_tokens": 256, "local_ttft_ms": 25, "split_ttft_ms": 35}]
+    comparison, timeline = curves([report]), phases(report)
+    for figure in (comparison, timeline):
+        assert figure.layout.autosize
+        assert figure.layout.width is None
+        assert figure.layout.legend.orientation == "h"
+        assert figure.layout.legend.y < 0
+        assert figure.layout.legend.entrywidthmode == "fraction"
+        assert figure.layout.legend.entrywidth == 0.5
+        assert figure.layout.margin.b >= 190
+        assert figure.layout.xaxis.tickangle == 0
+    assert comparison.layout.height >= 1000
+    for name in ("xaxis", "xaxis2", "xaxis3", "xaxis4"):
+        assert list(getattr(comparison.layout, name).domain) == [0, 1]
+    assert list(comparison.data[0].y) == [25]
+    assert timeline.layout.height >= 480
+    assert timeline.layout.title.text == "Whole-request timeline"
+    assert all(len(trace.name) <= 22 for trace in timeline.data)
