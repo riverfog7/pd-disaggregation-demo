@@ -118,8 +118,12 @@ class RemoteWorker:
         try:
             digest = hashlib.sha256()
             size = 0
+            # A tunnel can drain a buffered state long after the worker's
+            # keepalive expires. Do not reuse that bulk connection for control.
             async with self._client.stream(
-                "GET", f"/artifacts/{manifest.artifact_id}/state"
+                "GET",
+                f"/artifacts/{manifest.artifact_id}/state",
+                headers={"Connection": "close"},
             ) as response:
                 response.raise_for_status()
                 header = response.headers.get("content-length")

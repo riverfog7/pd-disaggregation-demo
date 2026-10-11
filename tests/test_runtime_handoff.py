@@ -248,6 +248,44 @@ async def test_remote_download_bounds_and_checksum(tmp_path):
     await remote.close()
 
 
+async def test_bulk_state_connection_closes_without_changing_control_keepalive(tmp_path):
+    data = b"native state"
+    remote = RemoteWorker(Settings(work_dir=tmp_path))
+    await remote._client.aclose()
+    manifest = ArtifactManifest(
+        model_id="qwen3.5-4b",
+        fingerprint=fingerprint(),
+        token_ids=[1, 2],
+        prefix_tokens=1,
+        source_backend="cuda",
+        state_bytes=len(data),
+        state_sha256=hashlib.sha256(data).hexdigest(),
+    )
+    calls = []
+
+    def handler(request):
+        calls.append((request.method, request.url.path, request.headers.get("connection")))
+        if request.url.path.endswith("/state"):
+            return httpx.Response(200, content=data)
+        return httpx.Response(200, json={})
+
+    remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://worker"
+    )
+    try:
+        await remote.health()
+        artifact, _ = await remote.download(manifest, fingerprint())
+        assert artifact.state_path.read_bytes() == data
+        await remote.delete(manifest.artifact_id)
+        assert calls == [
+            ("GET", "/health", "keep-alive"),
+            ("GET", f"/artifacts/{manifest.artifact_id}/state", "close"),
+            ("DELETE", f"/artifacts/{manifest.artifact_id}", "keep-alive"),
+        ]
+    finally:
+        await remote.close()
+
+
 @pytest.mark.parametrize(
     "method,path",
     [("GET", "/health"), ("POST", "/configure"), ("POST", "/cancel"), ("DELETE", "/artifacts/id")],
