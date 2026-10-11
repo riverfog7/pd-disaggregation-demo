@@ -521,3 +521,50 @@ async def test_memory_peak_monitor_retains_intermediate_maximum(native):
     await runtime._sample_peak()
     assert runtime._peak_memory["process_rss_max_bytes"] == 30
     assert runtime._peak_memory["sample_count"] == 3
+
+
+async def test_same_profile_configure_restarts_exited_native_process(native):
+    from types import SimpleNamespace
+
+    runtime, _ = native
+    runtime._process = SimpleNamespace(returncode=-9)
+    restarted = []
+
+    async def start():
+        restarted.append(runtime.profile)
+        runtime._process = SimpleNamespace(returncode=None)
+
+    async def close():
+        runtime._process = None
+        if runtime._client:
+            await runtime._client.aclose()
+        runtime._client = None
+
+    runtime.start = start
+    runtime.close = close
+    await runtime.configure(runtime.profile)
+    assert restarted == [runtime.profile]
+
+
+async def test_crashed_native_health_does_not_probe_replacement_listener(native):
+    from types import SimpleNamespace
+
+    runtime, server = native
+    runtime._process = SimpleNamespace(returncode=-9)
+    health = await runtime.health()
+    assert health["status"] == "stopped"
+    assert health["native_exit_code"] == -9
+    assert server.calls == []
+    runtime._process = None
+
+
+async def test_exited_owned_process_refuses_requests_and_skips_erase(native):
+    from types import SimpleNamespace
+
+    runtime, server = native
+    runtime._process = SimpleNamespace(returncode=-9)
+    with pytest.raises(RuntimeError, match="Owned native llama-server exited"):
+        await runtime.prefill([1, 2, 3, 4])
+    assert server.calls == []
+    assert not runtime._lock.locked()
+    runtime._process = None

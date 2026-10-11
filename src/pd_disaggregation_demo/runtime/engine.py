@@ -115,9 +115,15 @@ class LlamaRuntime:
             args.extend(["--gpu-layers", "0"])
         return args
 
+    def _process_reusable(self) -> bool:
+        # Tests may inject an HTTP transport without an owned subprocess.
+        return self._process is None or self._process.returncode is None
+
     async def start(self) -> None:
-        if self._client:
+        if self._client and self._process_reusable():
             return
+        if self._client:
+            await self.close()
         from ..catalog import ensure_model, get_model
         from ..resources import check_admission
 
@@ -195,10 +201,10 @@ class LlamaRuntime:
         if self._lock.locked():
             raise RuntimeError("Runtime has an active request")
         async with self._lock:
-            if profile == self.profile and self._client:
+            if profile == self.profile and self._client and self._process_reusable():
                 return
             previous = self.profile
-            was_started = self._client is not None
+            was_started = self._client is not None and self._process_reusable()
             await self.close()
             self.profile = profile
             try:
@@ -230,7 +236,7 @@ class LlamaRuntime:
 
     async def health(self) -> dict:
         native = None
-        if self._client:
+        if self._client and self._process_reusable():
             try:
                 response = await self._client.get("/health", timeout=2)
                 response.raise_for_status()
@@ -244,6 +250,7 @@ class LlamaRuntime:
             "fingerprint": self.fingerprint.model_dump() if self.fingerprint else None,
             "engine_revision": self.settings.engine_revision,
             "startup_ms": self.startup_ms,
+            "native_exit_code": self._process.returncode if self._process else None,
             "admission": self._admission.model_dump(mode="json") if self._admission else None,
             "native": native,
             "resources": await self._snapshot(),
@@ -252,6 +259,8 @@ class LlamaRuntime:
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
             raise RuntimeError("Runtime has not been started")
+        if not self._process_reusable():
+            raise RuntimeError("Owned native llama-server exited; configure runtime to restart")
         return self._client
 
     async def _post(self, path: str, payload: dict) -> dict:
@@ -277,6 +286,8 @@ class LlamaRuntime:
         return tokens
 
     async def _erase(self) -> None:
+        if not self._process_reusable():
+            return  # Process exit already released its native slot.
         await self._post("/slots/0?action=erase", {})
 
     async def cancel(self) -> None:
