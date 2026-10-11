@@ -7,9 +7,15 @@ from .models import BenchmarkReport
 
 def paired_speedup(local: list[float], split: list[float], *, seed: int, draws: int) -> dict:
     """Geometric mean of within-pair TTFT ratios with a percentile bootstrap interval."""
-    if len(local) != len(split) or not local or any(v <= 0 for v in local + split):
-        raise ValueError("Paired TTFT values must be positive and have equal nonzero lengths")
-    logs = [math.log(a / b) for a, b in zip(local, split, strict=True)]
+    if (
+        len(local) != len(split)
+        or not local
+        or any(not math.isfinite(v) or v <= 0 for v in local + split)
+    ):
+        raise ValueError(
+            "Paired TTFT values must be finite, positive and have equal nonzero lengths"
+        )
+    logs = [math.log(a) - math.log(b) for a, b in zip(local, split, strict=True)]
     estimate = math.exp(statistics.mean(logs))
     if len(logs) < 2:
         return {

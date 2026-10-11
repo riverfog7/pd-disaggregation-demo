@@ -201,6 +201,68 @@ def test_paired_bootstrap_uncertain_and_single_pair():
         paired_speedup([0], [10], seed=0, draws=100)
 
 
+@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), float("-inf")])
+def test_paired_bootstrap_rejects_nonfinite_timing(invalid):
+    with pytest.raises(ValueError, match="finite"):
+        paired_speedup([100, invalid], [50, 50], seed=0, draws=100)
+
+
+@pytest.mark.parametrize(
+    "ttft,total,message",
+    [
+        (None, 200, "measured TTFT"),
+        (0, 200, "measured TTFT"),
+        (float("nan"), 200, "measured TTFT"),
+        (float("inf"), 200, "measured TTFT"),
+        (100, float("nan"), "total duration"),
+        (100, float("inf"), "total duration"),
+        (100, 99, "total duration"),
+    ],
+)
+async def test_invalid_native_timing_fails_without_estimation(tmp_path, ttft, total, message):
+    class InvalidTiming(FakePipeline):
+        async def generate(self, request):
+            async for event in super().generate(request):
+                if event.result is not None:
+                    event.result.metrics.ttft_ms = ttft
+                    event.result.metrics.total_ms = total
+                yield event
+
+    report = await collect_benchmark(
+        InvalidTiming(),
+        BenchmarkConfig(prompt_sizes=[256], repeats=1, warmup=False, bootstrap_samples=100),
+        settings(tmp_path),
+    )
+    assert report.status == "failed"
+    assert message in report.errors[0]
+    assert not report.samples
+    assert report.summary[0]["speedup"] is None
+    assert not report.summary[0]["supported_win"]
+    assert load_report(Path(report.exports["json"])).status == "failed"
+
+
+async def test_partial_pair_failure_uses_only_complete_pairs(tmp_path):
+    class LastSplitFails(FakePipeline):
+        async def generate(self, request):
+            if len(self.calls) == 5:
+                raise RuntimeError("last split request failed")
+            async for event in super().generate(request):
+                yield event
+
+    report = await collect_benchmark(
+        LastSplitFails(),
+        BenchmarkConfig(prompt_sizes=[256], repeats=3, warmup=False, bootstrap_samples=100),
+        settings(tmp_path),
+    )
+    assert report.status == "failed"
+    assert len(report.samples) == 5
+    row = report.summary[0]
+    assert (row["local_samples"], row["split_samples"], row["pairs"]) == (3, 2, 2)
+    assert row["speedup"] == pytest.approx(2)
+    assert report.failures[0]["mode"] == "split"
+    assert report.failures[0]["repeat"] == 2
+
+
 def test_ui_build_and_mount_smoke(tmp_path):
     gr = pytest.importorskip("gradio")
     from fastapi import FastAPI

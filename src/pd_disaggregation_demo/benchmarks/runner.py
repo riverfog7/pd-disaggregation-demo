@@ -69,8 +69,12 @@ def _check_result(result, size, output, mode, model_id):
             f"Token budget mismatch: prompt={result.prompt_tokens}/{size}, "
             f"output={result.generated_tokens}/{output}"
         )
-    if result.metrics.ttft_ms is None or result.metrics.ttft_ms <= 0:
-        raise RuntimeError("Runtime returned no positive measured TTFT")
+    ttft = result.metrics.ttft_ms
+    if ttft is None or not math.isfinite(ttft) or ttft <= 0:
+        raise RuntimeError("Runtime returned no finite positive measured TTFT")
+    total = result.metrics.total_ms
+    if not math.isfinite(total) or total < ttft:
+        raise RuntimeError("Runtime total duration must be finite and include measured TTFT")
     if result.mode == "split" and (
         result.metrics.cache_n != size - 1 or result.metrics.prompt_n != 1
     ):
