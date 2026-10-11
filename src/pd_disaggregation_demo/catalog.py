@@ -1,13 +1,22 @@
 """Pinned GGUF profiles shared by both machines."""
 
+import fcntl
 import hashlib
+import re
 import shutil
+import sys
+import time
 from pathlib import Path
 
-from huggingface_hub import hf_hub_download
+import httpx
+from huggingface_hub import hf_hub_url
 
 from pd_disaggregation_demo.config import Settings
 from pd_disaggregation_demo.models import ModelSpec
+
+DOWNLOAD_CHUNK_BYTES = 1024 * 1024
+DOWNLOAD_ATTEMPTS = 5
+_CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 
 
 def _recurrent(layers: int, value_heads: int) -> int:
@@ -97,8 +106,127 @@ def verify_model(path: Path, spec: ModelSpec) -> Path:
     return path.resolve()
 
 
+def _http_client() -> httpx.Client:
+    return httpx.Client(
+        follow_redirects=True,
+        timeout=httpx.Timeout(connect=15, read=60, write=15, pool=15),
+        limits=httpx.Limits(max_connections=1, max_keepalive_connections=1),
+    )
+
+
+def _http_download(settings: Settings, spec: ModelSpec, destination: Path) -> Path:
+    """Bounded plain HTTP transfer; Xet is never invoked, even if already imported."""
+    final = destination / spec.filename
+    partial = final.with_name(final.name + ".part")
+    if partial.is_symlink():
+        raise ValueError("Model partial download must be a regular file")
+    url = hf_hub_url(spec.hf_repo, spec.filename, revision=spec.hf_revision)
+    reserve = max(settings.disk_reserve_bytes, 20 * 1024**3)
+    with _http_client() as client:
+        for attempt in range(DOWNLOAD_ATTEMPTS):
+            offset = partial.stat().st_size if partial.exists() else 0
+            if offset > spec.size_bytes:
+                partial.unlink()
+                raise ValueError(
+                    "Partial model exceeds the pinned file size; removed invalid partial"
+                )
+            if offset == spec.size_bytes:
+                try:
+                    verify_model(partial, spec)
+                except ValueError:
+                    partial.unlink()
+                    raise
+                partial.replace(final)
+                return final.resolve()
+            required = spec.size_bytes - offset + reserve
+            available = shutil.disk_usage(destination).free
+            if available < required:
+                raise ValueError(
+                    f"Model download needs {required:,} disk bytes; {available:,} available"
+                )
+            headers = {"Accept-Encoding": "identity"}
+            if offset:
+                headers["Range"] = f"bytes={offset}-"
+            try:
+                with client.stream("GET", url, headers=headers) as response:
+                    response.raise_for_status()
+                    if response.headers.get("content-encoding", "identity") != "identity":
+                        raise ValueError("Model HTTP response must use identity content encoding")
+                    if response.status_code == 206:
+                        match = _CONTENT_RANGE.fullmatch(response.headers.get("content-range", ""))
+                        if not match:
+                            raise ValueError("Model resume response lacks a valid Content-Range")
+                        start, end, total = map(int, match.groups())
+                        if start != offset or total != spec.size_bytes or not start <= end < total:
+                            raise ValueError(
+                                "Model resume Content-Range does not match the pinned file"
+                            )
+                        expected_response_bytes = end - start + 1
+                        mode = "ab"
+                    elif response.status_code == 200:
+                        # A server ignoring Range sends the whole file; safely restart.
+                        offset = 0
+                        expected_response_bytes = spec.size_bytes
+                        mode = "wb"
+                    else:
+                        raise ValueError(f"Unexpected model download status {response.status_code}")
+                    length = response.headers.get("content-length")
+                    if length is not None and int(length) != expected_response_bytes:
+                        raise ValueError("Model HTTP Content-Length does not match the pinned size")
+                    print(
+                        f"{spec.model_id}: HTTP download {offset:,}/{spec.size_bytes:,} bytes",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    received = 0
+                    next_report = offset + 64 * DOWNLOAD_CHUNK_BYTES
+                    with partial.open(mode) as output:
+                        for chunk in response.iter_raw(chunk_size=DOWNLOAD_CHUNK_BYTES):
+                            if received + len(chunk) > expected_response_bytes:
+                                raise ValueError("Model HTTP body exceeds its pinned response size")
+                            if shutil.disk_usage(destination).free < reserve + len(chunk):
+                                raise ValueError(
+                                    "Model download would cross the 20GiB disk reserve"
+                                )
+                            output.write(chunk)
+                            received += len(chunk)
+                            if offset + received >= next_report:
+                                print(
+                                    f"{spec.model_id}: "
+                                    f"{offset + received:,}/{spec.size_bytes:,} bytes",
+                                    file=sys.stderr,
+                                    flush=True,
+                                )
+                                next_report = offset + received + 64 * DOWNLOAD_CHUNK_BYTES
+                        output.flush()
+                    if received != expected_response_bytes:
+                        raise httpx.ReadError("Model HTTP body ended before the declared size")
+                if partial.stat().st_size == spec.size_bytes:
+                    try:
+                        verify_model(partial, spec)
+                    except ValueError:
+                        partial.unlink()
+                        raise
+                    partial.replace(final)
+                    return final.resolve()
+            except (httpx.TransportError, httpx.HTTPStatusError) as error:
+                if isinstance(error, httpx.HTTPStatusError) and error.response.status_code not in (
+                    408,
+                    429,
+                    500,
+                    502,
+                    503,
+                    504,
+                ):
+                    raise
+                if attempt == DOWNLOAD_ATTEMPTS - 1:
+                    raise
+                time.sleep(min(2**attempt, 5))
+    raise RuntimeError("Model transfer did not complete after bounded retries; partial preserved")
+
+
 def ensure_model(settings: Settings, model_id: str) -> Path:
-    """Download the exact revision, then verify bytes before inference."""
+    """Download pinned public weights in bounded chunks, verify and atomically publish."""
     spec = get_model(model_id)
     if settings.model_path is not None:
         return verify_model(settings.model_path.expanduser(), spec)
@@ -107,16 +235,11 @@ def ensure_model(settings: Settings, model_id: str) -> Path:
     existing = destination / spec.filename
     if existing.is_file():
         return verify_model(existing, spec)
-    required = spec.size_bytes + settings.disk_reserve_bytes
-    available = shutil.disk_usage(destination).free
-    if available < required:
-        raise ValueError(f"Model download needs {required:,} disk bytes; {available:,} available")
-    downloaded = Path(
-        hf_hub_download(
-            repo_id=spec.hf_repo,
-            filename=spec.filename,
-            revision=spec.hf_revision,
-            local_dir=destination,
-        )
-    )
-    return verify_model(downloaded, spec)
+    lock_path = destination / ("." + spec.filename + ".download.lock")
+    if lock_path.is_symlink():
+        raise ValueError("Model download lock must be a regular file")
+    with lock_path.open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if existing.is_file():
+            return verify_model(existing, spec)
+        return _http_download(settings, spec, destination)

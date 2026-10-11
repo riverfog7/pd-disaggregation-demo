@@ -96,3 +96,14 @@ building. An occupied port is accepted only when Docker identifies the demo's
 own worker publishing that exact address/port; unrelated listeners are left
 running and the build is refused. Long build/deployment commands stream their
 diagnostics to stderr immediately while retaining stdout for structured JSON.
+
+Model fetches use `hf_hub_url` only to construct the pinned public URL, then a
+single plain HTTP stream with at most 1MiB application chunks. They do not call
+`hf_hub_download` or Xet, including when Hugging Face was imported earlier with
+Xet enabled. The image also sets `HF_HUB_DISABLE_XET=1` before Python starts.
+Downloads keep a `.part` file, resume only after validating exact HTTP
+`Content-Range`, retry transient failures at most five times, and publish by
+atomic rename only after exact size and SHA256 verification. Concurrent fetches
+share an OS file lock. Progress is written to stderr; disk reserves are checked
+before download and during writing. Existing verified weights remain usable
+without creating a download lock on the read-only worker mount.
