@@ -23,6 +23,8 @@ uv run --extra mac pd-demo serve mac --model qwen3.5-0.8b --context 2048
 
 Open **http://127.0.0.1:8080/demo/**. The API documentation is at **http://127.0.0.1:8080/docs**. `serve mac --detach`, `status mac`, and `stop mac` manage a background Mac service. `--no-tunnel` leaves tunnel management to you. `--lan-host gpu_home_lan` chooses a separate SSH route for measurements without changing the deployment host.
 
+`pd-demo status remote` inspects the deployed Docker worker. `pd-demo stop remote` stops only that worker while retaining its release and data; redeploy its committed SHA to start it again.
+
 On a Linux checkout, the equivalent Docker launch is:
 
 ```bash
@@ -104,6 +106,8 @@ Reports are saved under `.pd-demo/reports/` as JSON, CSV and standalone HTML wit
 | `qwen3.5-27b` | 16,740,812,704 bytes | Constrained CPU-FFN/offload experiment |
 
 [The catalog](src/pd_disaggregation_demo/catalog.py) pins each HF repository revision, filename and SHA256. Both machines verify size and hash before inference. Default cache precision is F16; Q8_0 is explicit. Recurrent state keeps the engine's native representation.
+
+Downloads use a single HTTP stream with bounded chunks, resumable partial files and an atomic publish after checksum verification. Xet reconstruction is disabled to keep download RAM predictable on the remote host.
 
 Admission reserves at least 1 GiB VRAM, 2 GiB Linux host RAM, 6 GiB Mac unified RAM and 20 GiB disk beyond estimated application needs. Weights, KV/recurrent state, compute and export/import buffers count toward the estimate. The Linux worker has equal Docker memory/swap limits and a watchdog that stops **only its own engine** after sustained reserve violations. `/configure` can recover it after pressure is resolved. It never kills unrelated processes.
 

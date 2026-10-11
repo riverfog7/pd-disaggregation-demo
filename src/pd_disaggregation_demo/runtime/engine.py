@@ -100,6 +100,8 @@ class LlamaRuntime:
             "0",
             "--no-repack",
             "--no-host",
+            "--load-mode",
+            "mmap",
             "--slot-save-path",
             str(self._slots_dir),
             "--slots",
