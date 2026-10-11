@@ -309,4 +309,6 @@ cython_debug/
 
 
 .pd-demo/
+.pd-worker/
+.deploy/
 .env
