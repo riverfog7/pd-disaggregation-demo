@@ -107,3 +107,14 @@ atomic rename only after exact size and SHA256 verification. Concurrent fetches
 share an OS file lock. Progress is written to stderr; disk reserves are checked
 before download and during writing. Existing verified weights remain usable
 without creating a download lock on the read-only worker mount.
+
+Cold CUDA builds default to a six-hour allowance. `deploy(..., build_timeout=...)`
+and `serve_linux(..., build_timeout=...)` can override it with positive finite
+seconds. Remote SSH also adds the model-fetch timeout, readiness timeout and a
+five-minute transition allowance, with keepalive probes; build stderr stays
+streamed. These time allowances leave the measured RAM/swap/CPU and compilation
+parallelism bounds intact. An interrupted first deployment can adopt its
+existing owned SHA builder even when `.deploy/current` was never created: builder
+selection scans owned Buildx names and persists the adopted cache identity.
+Changing this setting in source does not change a deployment already running
+under an earlier deadline.

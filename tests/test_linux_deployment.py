@@ -29,9 +29,11 @@ def test_deploy_git_only_transaction_and_shell_syntax(monkeypatch, tmp_path):
 
     monkeypatch.setattr(operations, "_run", run)
     scripts = []
+    options = []
 
     def ssh(settings, script, **kwargs):
         scripts.append(script)
+        options.append(kwargs)
         check = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True)
         assert check.returncode == 0, check.stderr
         for marker, code in re.findall(r"<<'(PY[A-Z]+)'\n(.*?)\n\1", script, re.S):
@@ -42,6 +44,10 @@ def test_deploy_git_only_transaction_and_shell_syntax(monkeypatch, tmp_path):
     settings = Settings(work_dir=tmp_path, remote_repo="/home/demo/space path/demo")
     result = operations.deploy(settings, sha)
     assert result["revision"] == sha
+    assert options[0]["timeout"] == (
+        operations.DEFAULT_BUILD_TIMEOUT_SECONDS + settings.request_timeout + 900 + 300
+    )
+    assert options[0]["stream"]
     assert any(args[:3] == ["git", "push", "origin"] for args in calls)
     script = scripts[0]
     assert "worktree add --detach" in script
@@ -103,6 +109,8 @@ def test_local_builder_is_capped_and_stopped_on_failure(monkeypatch, tmp_path):
     def run(args, **kwargs):
         calls.append(args)
         if args[:2] == ["compose-test", "build"]:
+            assert kwargs["timeout"] == operations.DEFAULT_BUILD_TIMEOUT_SECONDS
+            assert kwargs["stream"]
             raise RuntimeError("compile OOM")
         return ""
 
@@ -187,3 +195,51 @@ def test_occupied_worker_port_refuses_unrelated_listener_before_build(monkeypatc
 
         monkeypatch.setattr(operations, "_run", owned)
         operations._check_worker_port(Settings(worker_port=port))
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("inf"), float("nan")])
+def test_invalid_build_timeout_fails_before_any_external_operation(monkeypatch, timeout):
+    monkeypatch.setattr(operations, "_repo", lambda _: pytest.fail("must validate before Git"))
+    with pytest.raises(ValueError, match="Build timeout"):
+        operations.deploy(Settings(), "a" * 40, build_timeout=timeout)
+
+
+def test_interrupted_first_remote_deploy_adopts_cache_without_current_symlink(
+    monkeypatch, tmp_path
+):
+    import os
+    import sys
+
+    sha = "d" * 40
+    builder = "pd-demo-" + sha
+    monkeypatch.setattr(operations, "_repo", lambda _: tmp_path)
+    monkeypatch.setattr(operations, "_clean_revision", lambda *a: sha)
+    monkeypatch.setattr(operations, "_run", lambda *a, **kw: "https://github.com/test/demo.git")
+    scripts = []
+    monkeypatch.setattr(
+        operations, "_ssh", lambda _, script, **kw: scripts.append(script) or '{"status":"ready"}\n'
+    )
+    operations.deploy(Settings(work_dir=tmp_path), sha)
+    code = re.search(r"<<'PYBUILDER'\n(.*?)\nPYBUILDER", scripts[0], re.S).group(1)
+    commands = tmp_path / "bin"
+    commands.mkdir()
+    docker = commands / "docker"
+    docker.write_text(
+        "#!/bin/sh\n"
+        'test "$1" = buildx && test "$2" = ls || exit 9\n'
+        "printf '%s\\n' default other-user '" + builder + " *'\n"
+    )
+    docker.chmod(0o755)
+    record = tmp_path / "builder-name"
+    current = tmp_path / "current"
+    assert not current.exists() and not current.is_symlink()
+    result = subprocess.run(
+        [sys.executable, "-", str(record), str(current)],
+        input=code,
+        env={**os.environ, "PATH": str(commands) + os.pathsep + os.environ["PATH"]},
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    assert result.stdout.strip() == builder
+    assert record.read_text().strip() == builder

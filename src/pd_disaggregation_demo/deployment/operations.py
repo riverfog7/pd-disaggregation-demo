@@ -1,6 +1,7 @@
 """Only the demo's Compose project is managed; source travels exclusively via Git."""
 
 import json
+import math
 import os
 import re
 import shlex
@@ -14,6 +15,12 @@ from ..resources import GiB, capture_resources
 
 PROJECT = "pd-disaggregation-demo"
 SHA = re.compile(r"^[0-9a-f]{40}$")
+DEFAULT_BUILD_TIMEOUT_SECONDS = 6 * 60 * 60
+
+
+def _validate_build_timeout(seconds: float) -> None:
+    if seconds <= 0 or not math.isfinite(seconds):
+        raise ValueError("Build timeout must be finite and greater than zero")
 
 
 def _run(
@@ -50,6 +57,10 @@ def _ssh(settings: Settings, script: str, *, timeout: float = 120, stream: bool 
             "BatchMode=yes",
             "-o",
             "ConnectTimeout=15",
+            "-o",
+            "ServerAliveInterval=15",
+            "-o",
+            "ServerAliveCountMax=3",
             settings.remote_ssh_host,
             "bash -s",
         ],
@@ -205,8 +216,10 @@ def deploy(
     *,
     health_timeout: float = 900,
     profile: RuntimeProfile | None = None,
+    build_timeout: float = DEFAULT_BUILD_TIMEOUT_SECONDS,
 ) -> dict:
     """Push/fetch exact clean SHA, build release, switch and verify; restore on failure."""
+    _validate_build_timeout(build_timeout)
     local = _repo(settings)
     revision = _clean_revision(local, revision)
     origin = _run(["git", "remote", "get-url", "origin"], cwd=local).strip()
@@ -294,7 +307,7 @@ else:
         if pathlib.Path(sys.argv[2]).is_symlink() else ''
     result = subprocess.run(['docker','buildx','ls','--format','{{{{.Name}}}}'],
                             capture_output=True, text=True, check=True)
-    existing = [n.strip().rstrip('*') for n in result.stdout.splitlines()]
+    existing = [n.strip().rstrip('*').strip() for n in result.stdout.splitlines()]
     owned = sorted(n for n in existing if pattern.fullmatch(n))
     if preferred in owned:
         name = preferred
@@ -353,7 +366,10 @@ if [ -n "$prior" ] && [ "$prior" != "$release" ]; then ln -sfn "$prior" "$root/p
 ln -sfn "$release" "$root/current"
 trap - EXIT
 """
-    output = _ssh(settings, script, timeout=max(3600, health_timeout + 300), stream=True)
+    # A cold SM75 build can take hours at the intentionally bounded single-job
+    # setting. Fetch/readiness allowances must not consume its build deadline.
+    total_timeout = build_timeout + settings.request_timeout + health_timeout + 300
+    output = _ssh(settings, script, timeout=total_timeout, stream=True)
     # Git/build progress can coexist with the final JSON health line.
     health = next(
         json.loads(line) for line in reversed(output.splitlines()) if line.startswith("{")
@@ -460,7 +476,9 @@ def _owned_builder(work_dir: Path) -> str:
     else:
         existing = _run(["docker", "buildx", "ls", "--format", "{{.Name}}"]).splitlines()
         owned = sorted(
-            n.strip().rstrip("*") for n in existing if pattern.fullmatch(n.strip().rstrip("*"))
+            n.strip().rstrip("*").strip()
+            for n in existing
+            if pattern.fullmatch(n.strip().rstrip("*").strip())
         )
         name = "pd-demo-build" if "pd-demo-build" in owned or not owned else owned[0]
         record.write_text(name + "\n")
@@ -469,7 +487,13 @@ def _owned_builder(work_dir: Path) -> str:
     return name
 
 
-def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
+def _bounded_local_build(
+    settings: Settings,
+    compose: list[str],
+    *,
+    build_timeout: float = DEFAULT_BUILD_TIMEOUT_SECONDS,
+) -> None:
+    _validate_build_timeout(build_timeout)
     resources = capture_resources(settings.work_dir)
     headroom = resources.ram_available_bytes - max(2 * GiB, settings.remote_ram_reserve_bytes)
     if headroom < GiB:
@@ -504,7 +528,9 @@ def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
         ]
     )
     try:
-        _run(compose + ["build", "--builder", builder, "worker"], timeout=3600, stream=True)
+        _run(
+            compose + ["build", "--builder", builder, "worker"], timeout=build_timeout, stream=True
+        )
     finally:
         _run(["docker", "buildx", "stop", builder])
 
@@ -541,10 +567,17 @@ def _check_worker_port(settings: Settings) -> None:
                 raise ValueError("Worker port is occupied by an unrelated listener; refusing build")
 
 
-def serve_linux(settings: Settings, profile: RuntimeProfile, detach: bool = True) -> dict:
+def serve_linux(
+    settings: Settings,
+    profile: RuntimeProfile,
+    detach: bool = True,
+    *,
+    build_timeout: float = DEFAULT_BUILD_TIMEOUT_SECONDS,
+) -> dict:
+    _validate_build_timeout(build_timeout)
     _check_worker_port(settings)
     args = _local_compose(settings, profile)
-    _bounded_local_build(settings, args)
+    _bounded_local_build(settings, args, build_timeout=build_timeout)
     _run(
         args + ["run", "--rm", "--no-deps", "models"], timeout=settings.request_timeout, stream=True
     )
