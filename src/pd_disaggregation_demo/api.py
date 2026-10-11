@@ -18,7 +18,13 @@ from pydantic import BaseModel, Field
 from .artifacts import load_artifact
 from .catalog import MODELS
 from .config import Settings
-from .models import DecodeRequest, GenerationRequest, PrefillRequest, RuntimeProfile
+from .models import (
+    DecodeRequest,
+    GenerationEvent,
+    GenerationRequest,
+    PrefillRequest,
+    RuntimeProfile,
+)
 from .pipeline import Pipeline
 
 
@@ -58,8 +64,12 @@ async def _events(source: AsyncGenerator) -> AsyncIterator[str]:
         async with contextlib.aclosing(source):
             async for event in source:
                 yield _sse(event.model_dump(mode="json"), event.kind)
+    except asyncio.CancelledError:
+        event = GenerationEvent(kind="error", stage="cancelled", text="Request cancelled")
+        yield _sse(event.model_dump(mode="json"), "error")
     except Exception as exc:
-        yield _sse({"error": str(exc)}, "error")
+        event = GenerationEvent(kind="error", text=str(exc))
+        yield _sse(event.model_dump(mode="json"), "error")
 
 
 def create_app(
@@ -286,6 +296,8 @@ def create_app(
                                     else "stop"
                                 )
                                 yield _sse(chunk({}, reason))
+                except asyncio.CancelledError:
+                    yield _sse({"error": {"message": "Request cancelled", "type": "cancelled"}})
                 except Exception as exc:
                     yield _sse({"error": {"message": str(exc), "type": "runtime_error"}})
                 yield _sse("[DONE]")
