@@ -304,6 +304,14 @@ async def test_split_preserves_canonical_tokens_and_reports_client_ttft(native):
     # Simulate CUDA export using the same slot file format as the mocked Metal engine.
     exported = await runtime.prefill([1, 2, 3, 4])
     exported.manifest.source_backend = "cuda"
+    exported.manifest.timings.update(
+        {
+            "peak_process_rss_bytes": 700 * 1024**2,
+            "peak_gpu_used_bytes": 1024**3,
+            "memory_sample_count": 2,
+            "memory_sample_period_ms": 100,
+        }
+    )
     pipeline = Pipeline(runtime.settings)
     await pipeline.remote.close()
     pipeline.runtime = runtime
@@ -351,6 +359,8 @@ async def test_split_preserves_canonical_tokens_and_reports_client_ttft(native):
     assert result.metrics.transfer_mbps > 0
     assert result.remote_profile.gpu_layers == 12
     assert result.remote_profile.cpu_ffn == 8
+    assert result.metrics.memory["remote_prefill_peak"]["gpu_used_max_bytes"] == 1024**3
+    assert result.metrics.memory["remote_prefill_peak"]["sample_count"] == 2
     assert result.metrics.memory["before"]["ram_available_bytes"] == 1024**3
     assert deleted == [f"/artifacts/{exported.manifest.artifact_id}"]
     assert not exported.state_path.parent.exists()

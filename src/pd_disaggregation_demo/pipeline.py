@@ -186,6 +186,18 @@ class Pipeline:
                             metrics.tokenize_ms = tokenize_ms
                             metrics.transfer_ms = transfer_ms
                             metrics.total_ms = elapsed_ms(start)
+                            remote_peak = {
+                                target: artifact.manifest.timings[source]
+                                for source, target in [
+                                    ("peak_process_rss_bytes", "process_rss_max_bytes"),
+                                    ("peak_gpu_used_bytes", "gpu_used_max_bytes"),
+                                    ("memory_sample_count", "sample_count"),
+                                    ("memory_sample_period_ms", "sample_period_ms"),
+                                ]
+                                if source in artifact.manifest.timings
+                            }
+                            if remote_peak:
+                                metrics.memory["remote_prefill_peak"] = remote_peak
                             if transfer_ms > 0:
                                 metrics.transfer_mbps = (
                                     metrics.state_bytes * 8 / (transfer_ms * 1000)

@@ -410,11 +410,16 @@ class LlamaRuntime:
                             "native_prefill_ms": timings.get("prompt_ms", 0),
                             "prefill_tps": timings.get("prompt_per_second", 0),
                             "native_save_ms": saved.get("timings", {}).get("save_ms", 0),
-                            "peak_process_rss_bytes": self._peak_memory.get(
-                                "process_rss_max_bytes", 0
-                            ),
-                            "peak_gpu_used_bytes": self._peak_memory.get("gpu_used_max_bytes", 0),
+                            **{
+                                export: self._peak_memory[source]
+                                for source, export in [
+                                    ("process_rss_max_bytes", "peak_process_rss_bytes"),
+                                    ("gpu_used_max_bytes", "peak_gpu_used_bytes"),
+                                ]
+                                if source in self._peak_memory
+                            },
                             "memory_sample_count": self._peak_memory["sample_count"],
+                            "memory_sample_period_ms": self._peak_memory["sample_period_ms"],
                         },
                     ),
                     state_path=state,
