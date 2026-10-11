@@ -104,6 +104,8 @@ building. An occupied port is accepted only when Docker identifies the demo's
 own worker publishing that exact address/port; unrelated listeners are left
 running and the build is refused. Long build/deployment commands stream their
 diagnostics to stderr immediately while retaining stdout for structured JSON.
+Both stdout and stderr from Compose image builds go to the diagnostic stream,
+so per-object build progress is visible before the build finishes.
 
 Model fetches use `hf_hub_url` only to construct the pinned public URL, then a
 single plain HTTP stream with at most 1MiB application chunks. They do not call

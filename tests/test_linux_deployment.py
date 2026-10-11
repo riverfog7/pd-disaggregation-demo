@@ -54,10 +54,11 @@ def test_deploy_git_only_transaction_and_shell_syntax(monkeypatch, tmp_path):
     assert "trap restore EXIT" in script
     assert script.index('compose build --builder "$builder" worker') < script.index("compose up -d")
     assert '"memory=$limit,memory-swap=$limit"' in script
+    assert 'compose build --builder "$builder" worker >&2' in script
     assert "max-parallelism = 1" in script
     assert "def _build_budget(available: int, reserve: int)" in script
     assert "build_limit, build_jobs = _build_budget(available," in script
-    assert "\'PDD_BUILD_JOBS\':str(build_jobs)" in script
+    assert "'PDD_BUILD_JOBS':str(build_jobs)" in script
     assert 'docker buildx stop "$builder"' in script
     assert "--use" not in script
     assert "rsync" not in script and "scp" not in script
@@ -117,6 +118,7 @@ def test_local_builder_is_capped_and_stopped_on_failure(
         if args[:2] == ["compose-test", "build"]:
             assert kwargs["timeout"] == operations.DEFAULT_BUILD_TIMEOUT_SECONDS
             assert kwargs["stream"]
+            assert kwargs["stdout_to_stderr"]
             assert f"BUILD_JOBS={jobs}" in args
             raise RuntimeError("compile OOM")
         return ""
@@ -279,3 +281,50 @@ def test_build_budget_threshold_and_remote_policy_match(available, reserve, limi
 def test_build_budget_never_borrows_host_reserve():
     with pytest.raises(ValueError, match="Insufficient RAM"):
         operations._build_budget(3 * operations.GiB - 1, 0)
+
+
+def test_build_stdout_and_stderr_stream_before_command_completes(capfd, tmp_path):
+    import sys
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    ready, release = tmp_path / "ready", tmp_path / "release"
+    script = """import pathlib, sys, time
+print('Ninja object progress', flush=True)
+print('Compose build diagnostic', file=sys.stderr, flush=True)
+pathlib.Path(sys.argv[1]).touch()
+while not pathlib.Path(sys.argv[2]).exists():
+    time.sleep(0.01)
+"""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        running = executor.submit(
+            operations._run,
+            [sys.executable, "-c", script, str(ready), str(release)],
+            stream=True,
+            stdout_to_stderr=True,
+            timeout=5,
+        )
+        try:
+            deadline = time.monotonic() + 3
+            while not ready.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            assert ready.exists(), "child must have emitted its progress"
+            assert not running.done()
+            captured = capfd.readouterr()
+            assert captured.out == ""
+            assert "Ninja object progress" in captured.err
+            assert "Compose build diagnostic" in captured.err
+        finally:
+            release.touch()
+        assert running.result() == ""
+
+
+def test_streamed_build_failure_retains_original_error_type():
+    import sys
+
+    with pytest.raises(RuntimeError, match=r"failed \(7\)"):
+        operations._run(
+            [sys.executable, "-c", "raise SystemExit(7)"],
+            stream=True,
+            stdout_to_stderr=True,
+        )

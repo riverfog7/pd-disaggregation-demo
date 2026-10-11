@@ -8,6 +8,7 @@ import re
 import shlex
 import socket
 import subprocess
+import sys
 from pathlib import Path
 
 from ..config.settings import Settings
@@ -47,6 +48,7 @@ def _run(
     input: str | None = None,
     timeout: float = 120,
     stream: bool = False,
+    stdout_to_stderr: bool = False,
 ) -> str:
     # Keep command data on stdout for JSON callers. Long build diagnostics go
     # directly to stderr, allowing a terminal or redirected log to show progress.
@@ -54,16 +56,15 @@ def _run(
         args,
         cwd=cwd,
         input=input,
-        stdout=subprocess.PIPE,
+        stdout=sys.stderr if stdout_to_stderr else subprocess.PIPE,
         stderr=None if stream else subprocess.PIPE,
         text=True,
         timeout=timeout,
     )
     if result.returncode:
-        raise RuntimeError(
-            f"{args[0]} failed ({result.returncode}): {(result.stderr or result.stdout)[-5000:]}"
-        )
-    return result.stdout
+        detail = (result.stderr or result.stdout or "")[-5000:]
+        raise RuntimeError(f"{args[0]} failed ({result.returncode}): {detail}")
+    return result.stdout or ""
 
 
 def _ssh(settings: Settings, script: str, *, timeout: float = 120, stream: bool = False) -> str:
@@ -353,7 +354,7 @@ docker buildx create --name "$builder" --driver docker-container \\
 cleanup_build() {{ docker buildx stop "$builder" >&2 || true; }}
 trap cleanup_build EXIT
 # Build leaves the previous healthy deployment serving throughout compilation.
-compose build --builder "$builder" worker
+compose build --builder "$builder" worker >&2
 cleanup_build
 trap - EXIT
 # Fetch only selected pinned model through its independent HF asset cache.
@@ -558,6 +559,7 @@ def _bounded_local_build(
             + ["build", "--builder", builder, "--build-arg", f"BUILD_JOBS={build_jobs}", "worker"],
             timeout=build_timeout,
             stream=True,
+            stdout_to_stderr=True,
         )
     finally:
         _run(["docker", "buildx", "stop", builder])
