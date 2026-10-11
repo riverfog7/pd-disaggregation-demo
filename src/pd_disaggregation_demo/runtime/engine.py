@@ -6,7 +6,7 @@ import json
 import platform
 import shutil
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
@@ -108,7 +108,7 @@ class LlamaRuntime:
             "--spec-type",
             "none",
             "--device",
-            {"metal": "Metal", "cuda": "CUDA0", "cpu": "none"}[self.backend],
+            {"metal": "MTL0", "cuda": "CUDA0", "cpu": "none"}[self.backend],
         ]
         if self.backend == "cpu":
             args.extend(["--gpu-layers", "0"])
@@ -144,6 +144,7 @@ class LlamaRuntime:
             import socket
 
             with socket.socket() as probe:
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 probe.bind(("127.0.0.1", self.settings.engine_port))
             self._process = await asyncio.create_subprocess_exec(
                 *self._arguments(binary, model_path),
@@ -242,7 +243,7 @@ class LlamaRuntime:
             "fingerprint": self.fingerprint.model_dump() if self.fingerprint else None,
             "engine_revision": self.settings.engine_revision,
             "startup_ms": self.startup_ms,
-            "admission": self._admission.model_dump() if self._admission else None,
+            "admission": self._admission.model_dump(mode="json") if self._admission else None,
             "native": native,
             "resources": await self._snapshot(),
         }
@@ -307,6 +308,8 @@ class LlamaRuntime:
             raise ValueError("Prompt plus output exceeds configured context")
 
     async def prefill(self, token_ids: list[int]) -> PrefillArtifact:
+        if self.fingerprint is None:
+            raise RuntimeError("Runtime has not been started")
         self._check_context(token_ids)
         if len(token_ids) < 2:
             raise ValueError("Prefill requires at least two canonical prompt tokens")
@@ -381,7 +384,7 @@ class LlamaRuntime:
             finally:
                 temporary.unlink(missing_ok=True)
 
-    async def generate(self, request: GenerationRequest) -> AsyncIterator[GenerationEvent]:
+    async def generate(self, request: GenerationRequest) -> AsyncGenerator[GenerationEvent]:
         if request.mode != "local":
             raise ValueError(
                 "Native runtime only implements local generation; use Pipeline for split"
@@ -406,7 +409,7 @@ class LlamaRuntime:
 
     async def decode(
         self, artifact: PrefillArtifact, request: DecodeRequest
-    ) -> AsyncIterator[GenerationEvent]:
+    ) -> AsyncGenerator[GenerationEvent]:
         start = time.perf_counter()
         await asyncio.to_thread(validate_artifact, artifact, self.fingerprint)
         if artifact.manifest.model_id != self.profile.model_id:
@@ -454,7 +457,7 @@ class LlamaRuntime:
         metrics: RunMetrics,
         start: float,
         cached: bool,
-    ) -> AsyncIterator[GenerationEvent]:
+    ) -> AsyncGenerator[GenerationEvent]:
         payload = {
             "prompt": tokens,
             "n_predict": request.max_tokens,
