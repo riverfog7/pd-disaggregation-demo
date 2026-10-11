@@ -5,7 +5,7 @@ import math
 import platform
 import sys
 import time
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 
 from ..models import GenerationRequest, Mode
@@ -101,7 +101,7 @@ def _is_admission(exc):
 
 async def run_benchmark(
     pipeline, config: BenchmarkConfig, settings, *, cancel_event: asyncio.Event | None = None
-) -> AsyncIterator[BenchmarkEvent]:
+) -> AsyncGenerator[BenchmarkEvent]:
     """Keep the runtime exclusively owned through configuration, warmup, and every paired trial."""
     async with pipeline.session():
         async with contextlib.aclosing(

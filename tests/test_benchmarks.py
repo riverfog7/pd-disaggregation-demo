@@ -342,6 +342,68 @@ async def test_ui_async_callback_outputs_and_gradio6_history(tmp_path):
     assert len(updates[-1][9]) == 3
 
 
+async def test_ui_closing_callback_saves_cancelled_report_and_releases_session(tmp_path):
+    pytest.importorskip("gradio")
+    from pd_disaggregation_demo.ui.app import build_ui
+
+    pipeline = FakePipeline()
+    demo = build_ui(pipeline, settings(tmp_path))
+    fn = next(fn for fn in demo.fns.values() if fn.name == "benchmark")
+    stream = fn.fn("qwen3.5-4b", "f16", 256, 512, 128, "256", 4, 1, "test")
+    update = await anext(stream)
+    assert not update[-1]["interactive"]
+    assert pipeline.session_owner is asyncio.current_task()
+    await stream.aclose()
+    assert pipeline.session_owner is None
+    assert pipeline.cancelled
+    report = load_report(next(settings(tmp_path).reports_dir.glob("*.json")))
+    assert report.status == "cancelled"
+    assert not report.samples
+
+
+async def test_ui_export_failure_enables_run_and_preserves_measurements(tmp_path, monkeypatch):
+    pytest.importorskip("gradio")
+    from pd_disaggregation_demo.ui.app import build_ui
+
+    def cannot_save(report, directory):
+        raise OSError("report storage unavailable")
+
+    monkeypatch.setattr("pd_disaggregation_demo.benchmarks.runner.save_report", cannot_save)
+    pipeline = FakePipeline()
+    demo = build_ui(pipeline, settings(tmp_path))
+    fn = next(fn for fn in demo.fns.values() if fn.name == "benchmark")
+    updates = [
+        update async for update in fn.fn("qwen3.5-4b", "f16", 256, 512, 128, "256", 4, 1, "test")
+    ]
+    assert all(len(update) == len(fn.outputs) for update in updates)
+    assert "Failed" in updates[-1][0]
+    assert "report storage unavailable" in updates[-1][0]
+    assert updates[-1][-1]["interactive"]
+    assert updates[-1][9] == {"__type__": "update"}
+    assert len(updates[-2][8]["samples"]) == 2
+    assert updates[-2][9] is None
+    assert pipeline.session_owner is None
+
+
+async def test_ui_close_storage_failure_releases_session_without_yielding(tmp_path, monkeypatch):
+    pytest.importorskip("gradio")
+    from pd_disaggregation_demo.ui.app import build_ui
+
+    def cannot_save(report, directory):
+        raise OSError("report storage unavailable")
+
+    monkeypatch.setattr("pd_disaggregation_demo.benchmarks.runner.save_report", cannot_save)
+    pipeline = FakePipeline()
+    demo = build_ui(pipeline, settings(tmp_path))
+    fn = next(fn for fn in demo.fns.values() if fn.name == "benchmark")
+    stream = fn.fn("qwen3.5-4b", "f16", 256, 512, 128, "256", 4, 1, "test")
+    await anext(stream)
+    with pytest.raises(OSError, match="report storage unavailable"):
+        await stream.aclose()
+    assert pipeline.session_owner is None
+    assert pipeline.cancelled
+
+
 async def test_token_preparation_is_bounded_and_exact():
     class Tokenizer:
         def __init__(self):

@@ -126,40 +126,56 @@ def build_ui(pipeline, settings) -> gr.Blocks:
             raise gr.Error(str(exc)) from exc
         cancel_event = asyncio.Event()
         active["cancel"] = cancel_event
+        closing = False
         try:
-            async for event in run_benchmark(pipeline, config, settings, cancel_event=cancel_event):
-                report = event.report
-                if report is None:
-                    continue
-                done = len(report.samples)
-                total = len(config.prompt_sizes) * config.repeats * 2
-                skipped = len(report.skipped) * config.repeats * 2
-                percent = 100 * (done + skipped) / total
-                status = (
-                    f"**{event.stage or event.kind}** · {event.message}\n\n"
-                    f"Measured {done}/{total} requests · skipped {len(report.skipped)} sizes "
-                    f"· {percent:.0f}%"
-                )
-                if report.errors:
-                    status += "\n\n" + "\n".join(f"Failure: {e}" for e in report.errors)
-                if report.skipped:
-                    status += "\n\n" + "\n".join(
-                        f"Skipped {s.prompt_tokens:,}: {s.reason}" for s in report.skipped
+            async with contextlib.aclosing(
+                run_benchmark(pipeline, config, settings, cancel_event=cancel_event)
+            ) as stream:
+                async for event in stream:
+                    report = event.report
+                    if report is None:
+                        continue
+                    done = len(report.samples)
+                    total = len(config.prompt_sizes) * config.repeats * 2
+                    skipped = len(report.skipped) * config.repeats * 2
+                    percent = 100 * (done + skipped) / total
+                    status = (
+                        f"**{event.stage or event.kind}** · {event.message}\n\n"
+                        f"Measured {done}/{total} requests · skipped {len(report.skipped)} sizes "
+                        f"· {percent:.0f}%"
                     )
-                yield (
-                    status,
-                    _cards(report),
-                    curves([report]),
-                    phases(report),
-                    transfer(report),
-                    _summary_rows(report),
-                    memory_rows(report),
-                    memory_chart(report),
-                    report.model_dump(mode="json"),
-                    list(report.exports.values()) or None,
-                    gr.update(choices=history_choices()),
-                    gr.update(interactive=report.status != "running"),
-                )
+                    if report.errors:
+                        status += "\n\n" + "\n".join(f"Failure: {e}" for e in report.errors)
+                    if report.skipped:
+                        status += "\n\n" + "\n".join(
+                            f"Skipped {s.prompt_tokens:,}: {s.reason}" for s in report.skipped
+                        )
+                    try:
+                        yield (
+                            status,
+                            _cards(report),
+                            curves([report]),
+                            phases(report),
+                            transfer(report),
+                            _summary_rows(report),
+                            memory_rows(report),
+                            memory_chart(report),
+                            report.model_dump(mode="json"),
+                            list(report.exports.values()) or None,
+                            gr.update(choices=history_choices()),
+                            gr.update(interactive=report.status != "running"),
+                        )
+                    except (GeneratorExit, asyncio.CancelledError):
+                        closing = True
+                        raise
+        except Exception as exc:
+            if closing:
+                raise
+            yield (
+                f"**Failed** · {exc}",
+                *(gr.skip() for _ in range(10)),
+                gr.update(interactive=True),
+            )
         finally:
             active["cancel"] = None
 
