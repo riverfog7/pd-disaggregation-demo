@@ -425,3 +425,36 @@ async def test_remote_admission_error_has_explicit_type(tmp_path):
     with pytest.raises(AdmissionError, match="context exceeds"):
         await remote._json("POST", "/configure", {})
     await remote.close()
+
+
+async def test_closing_outer_stream_immediately_releases_native_slot(native):
+    runtime, server = native
+    pipeline = Pipeline(runtime.settings)
+    pipeline.runtime = runtime
+    iterator = pipeline.generate(GenerationRequest(token_ids=[1, 2, 3], max_tokens=2))
+    while (await anext(iterator)).kind != "token":
+        pass
+    assert runtime._lock.locked()
+    assert pipeline._lock.locked()
+    await iterator.aclose()
+    assert not runtime._lock.locked()
+    assert not pipeline._lock.locked()
+    assert server.prefix == []
+    await pipeline.close()
+
+
+async def test_native_chat_uses_model_apply_template(native):
+    runtime, _ = native
+    observed = []
+
+    async def handler(request):
+        observed.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json={"prompt": "native template prompt"})
+
+    await runtime._client.aclose()
+    runtime._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://native"
+    )
+    messages = [{"role": "user", "content": "hello"}]
+    assert await runtime.format_chat(messages) == "native template prompt"
+    assert observed == [("/apply-template", {"messages": messages})]

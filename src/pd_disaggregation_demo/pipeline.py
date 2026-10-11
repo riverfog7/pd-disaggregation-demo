@@ -116,15 +116,17 @@ class Pipeline:
         self, artifact: PrefillArtifact, request: DecodeRequest
     ) -> AsyncIterator[GenerationEvent]:
         async with self._request():
-            async for event in self.runtime.decode(artifact, request):
-                yield event
+            async with contextlib.aclosing(self.runtime.decode(artifact, request)) as stream:
+                async for event in stream:
+                    yield event
 
     async def generate(self, request: GenerationRequest) -> AsyncIterator[GenerationEvent]:
         async with self._request():
             start = time.perf_counter()
             if request.mode == "local":
-                async for event in self.runtime.generate(request):
-                    yield event
+                async with contextlib.aclosing(self.runtime.generate(request)) as stream:
+                    async for event in stream:
+                        yield event
                 return
             tokenize_start = time.perf_counter()
             tokens = request.token_ids
@@ -159,22 +161,27 @@ class Pipeline:
                     )
                 )
                 first_token_ms = None
-                async for event in self.runtime.decode(artifact, decode_request):
-                    event.elapsed_ms = elapsed_ms(start)
-                    if event.kind == "token" and first_token_ms is None:
-                        first_token_ms = event.elapsed_ms
-                    if event.result:
-                        result = event.result
-                        result.mode = "split"
-                        result.remote_profile = self.remote.profile
-                        metrics = result.metrics
-                        metrics.ttft_ms = first_token_ms
-                        metrics.tokenize_ms = tokenize_ms
-                        metrics.transfer_ms = transfer_ms
-                        metrics.total_ms = elapsed_ms(start)
-                        if transfer_ms > 0:
-                            metrics.transfer_mbps = metrics.state_bytes * 8 / (transfer_ms * 1000)
-                    yield event
+                async with contextlib.aclosing(
+                    self.runtime.decode(artifact, decode_request)
+                ) as stream:
+                    async for event in stream:
+                        event.elapsed_ms = elapsed_ms(start)
+                        if event.kind == "token" and first_token_ms is None:
+                            first_token_ms = event.elapsed_ms
+                        if event.result:
+                            result = event.result
+                            result.mode = "split"
+                            result.remote_profile = self.remote.profile
+                            metrics = result.metrics
+                            metrics.ttft_ms = first_token_ms
+                            metrics.tokenize_ms = tokenize_ms
+                            metrics.transfer_ms = transfer_ms
+                            metrics.total_ms = elapsed_ms(start)
+                            if transfer_ms > 0:
+                                metrics.transfer_mbps = (
+                                    metrics.state_bytes * 8 / (transfer_ms * 1000)
+                                )
+                        yield event
             finally:
                 if artifact:
                     await asyncio.to_thread(delete_artifact, artifact)

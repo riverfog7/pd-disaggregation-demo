@@ -382,8 +382,11 @@ class LlamaRuntime:
         metrics.memory["before"] = await self._snapshot()
         async with self._slot():
             await self._erase()
-            async for event in self._completion(tokens, request, metrics, start, cached=False):
-                yield event
+            async with contextlib.aclosing(
+                self._completion(tokens, request, metrics, start, cached=False)
+            ) as stream:
+                async for event in stream:
+                    yield event
 
     async def decode(
         self, artifact: PrefillArtifact, request: DecodeRequest
@@ -413,8 +416,11 @@ class LlamaRuntime:
                     raise RuntimeError("Native slot restored wrong token boundary; require N-1")
                 metrics.restore_ms = elapsed_ms(restore_start)
                 yield GenerationEvent(kind="stage", stage="restore", elapsed_ms=metrics.restore_ms)
-                async for event in self._completion(tokens, request, metrics, start, cached=True):
-                    yield event
+                async with contextlib.aclosing(
+                    self._completion(tokens, request, metrics, start, cached=True)
+                ) as stream:
+                    async for event in stream:
+                        yield event
             finally:
                 temporary.unlink(missing_ok=True)
 
