@@ -1,10 +1,12 @@
 """Live resource snapshots and conservative pre-load admission estimates."""
 
+import ctypes
 import importlib
 import os
 import platform
 import shutil
 import subprocess
+from functools import cache
 from pathlib import Path
 
 import psutil
@@ -78,6 +80,61 @@ def _gpu_snapshot() -> dict:
             return {}
 
 
+def _query_metal_device() -> dict:
+    """Read a real Metal device without treating unified RAM as dedicated VRAM."""
+    metal = ctypes.CDLL("/System/Library/Frameworks/Metal.framework/Metal")
+    objc = ctypes.CDLL("/usr/lib/libobjc.A.dylib")
+    metal.MTLCreateSystemDefaultDevice.argtypes = []
+    metal.MTLCreateSystemDefaultDevice.restype = ctypes.c_void_p
+    objc.sel_registerName.argtypes = [ctypes.c_char_p]
+    objc.sel_registerName.restype = ctypes.c_void_p
+    pointer = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)(
+        ("objc_msgSend", objc)
+    )
+    unsigned = ctypes.CFUNCTYPE(ctypes.c_uint64, ctypes.c_void_p, ctypes.c_void_p)(
+        ("objc_msgSend", objc)
+    )
+    device = metal.MTLCreateSystemDefaultDevice()
+    if not device:
+        return {}
+    try:
+        name = pointer(device, objc.sel_registerName(b"name"))
+        utf8 = pointer(name, objc.sel_registerName(b"UTF8String")) if name else None
+        recommended = unsigned(device, objc.sel_registerName(b"recommendedMaxWorkingSetSize"))
+        result = {}
+        if utf8:
+            result["gpu_name"] = ctypes.string_at(utf8).decode("utf-8")
+        if recommended > 0:
+            result["metal_recommended_bytes"] = recommended
+        return result
+    finally:
+        pointer(device, objc.sel_registerName(b"release"))
+
+
+@cache
+def _mac_metadata() -> dict:
+    """Static hardware discovery happens once, away from the sampling hot path."""
+    values = {"cpu_model": platform.processor() or "unknown"}
+    try:
+        brand = subprocess.run(
+            ["sysctl", "-n", "machdep.cpu.brand_string"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=True,
+        ).stdout.strip()
+        if brand:
+            values["cpu_model"] = brand
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        values.update(_query_metal_device())
+    except (OSError, AttributeError, ValueError):
+        # Unavailable measurements remain unknown; never infer dedicated GPU memory.
+        pass
+    return values
+
+
 def capture_resources(path: Path) -> ResourceSnapshot:
     memory = psutil.virtual_memory()
     available = memory.available
@@ -102,6 +159,10 @@ def capture_resources(path: Path) -> ResourceSnapshot:
         except (OSError, StopIteration):
             pass
     gpu = _gpu_snapshot() if platform.system() == "Linux" else {}
+    if platform.system() == "Darwin":
+        metadata = _mac_metadata()
+        cpu_model = metadata["cpu_model"]
+        gpu = {key: value for key, value in metadata.items() if key != "cpu_model"}
     return ResourceSnapshot(
         platform=platform.system().lower(),
         cpu_count=psutil.cpu_count() or 1,
@@ -154,6 +215,8 @@ def check_admission(
     gpu = gpu_weights + state + compute if backend == "cuda" else 0
     if backend == "metal":
         ram = weights + 2 * state + compute + 256 * MiB
+        # Whole-model residency is conservative even with CPU FFN/layer placement.
+        gpu = weights + state + compute
     ram_reserve = (
         max(settings.local_ram_reserve_bytes, 6 * GiB)
         if backend == "metal"
@@ -194,6 +257,19 @@ def check_admission(
             f"Disk requires {disk + disk_reserve:,} bytes including reserve; "
             f"{resources.disk_free_bytes:,} free"
         )
+    if backend == "metal":
+        recommended = resources.metal_recommended_bytes
+        if recommended is None:
+            reasons.append(
+                "Metal working-set recommendation could not be measured; refusing admission"
+            )
+        else:
+            budgets["metal_recommended_bytes"] = recommended
+            if gpu + gpu_reserve > recommended:
+                reasons.append(
+                    f"Metal working set requires {gpu + gpu_reserve:,} bytes including reserve; "
+                    f"device recommends at most {recommended:,} bytes"
+                )
     if backend == "cuda":
         if resources.gpu_free_bytes is None:
             reasons.append("CUDA GPU free memory could not be measured; refusing admission")
