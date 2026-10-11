@@ -203,7 +203,7 @@ release="$root/releases/$revision"
 if [ ! -e "$release" ]; then git -C "$repo" worktree add --detach "$release" "$revision"; fi
 test "$(git -C "$release" rev-parse HEAD)" = "$revision"
 test -z "$(git -C "$release" status --porcelain)"
-python3 - "$root/env/$revision.env" "$revision" "$root/data" \\
+limit=$(python3 - "$root/env/$revision.env" "$revision" "$root/data" \\
   {settings.worker_port} {shlex.quote(profile_json)} <<'PYENV'
 import json, pathlib, shutil, sys
 mem = dict((line.split(':')[0], int(line.split()[1])*1024)
@@ -223,13 +223,33 @@ values={{'PDD_RELEASE_SHA':sys.argv[2], 'PDD_REMOTE_DATA':sys.argv[3],
  'PDD_CONTEXT_SIZE':str(profile['context_size']), 'PDD_CACHE_TYPE':profile['cache_type'],
  'PDD_WORKER_PROFILE':json.dumps(profile,separators=(',',':'))}}
 pathlib.Path(sys.argv[1]).write_text(''.join(k+'='+json.dumps(v)+'\\n' for k,v in values.items()))
+print(min(limit, 2*1024**3))
 PYENV
+)
 compose() {{
   docker compose --project-name {PROJECT} --env-file "$root/env/$revision.env" \\
     -f "$release/compose.yaml" "$@"
 }}
+# Give only this demo's builder a hard RAM limit and no swap, without changing
+# the user's default builder. Serialize all BuildKit vertices, not just nvcc.
+builder="pd-demo-$revision"
+cat > "$root/buildkitd.toml" <<'BUILDKIT'
+[worker.oci]
+  max-parallelism = 1
+BUILDKIT
+if docker buildx inspect "$builder" >/dev/null 2>&1; then
+  docker buildx rm --keep-state "$builder"
+fi
+docker buildx create --name "$builder" --driver docker-container \\
+  --driver-opt "memory=$limit,memory-swap=$limit" \\
+  --driver-opt cpu-period=100000,cpu-quota=200000,default-load=true \\
+  --buildkitd-config "$root/buildkitd.toml"
+cleanup_build() {{ docker buildx stop "$builder" >&2 || true; }}
+trap cleanup_build EXIT
 # Build leaves the previous healthy deployment serving throughout compilation.
-compose build worker
+compose build --builder "$builder" worker
+cleanup_build
+trap - EXIT
 prior=$(readlink "$root/current" || true)
 restore() {{
   rc=$?
@@ -278,13 +298,29 @@ root={root}
 previous=$(readlink "$root/previous")
 current=$(readlink "$root/current")
 revision=$(basename "$previous")
+test "$(dirname "$previous")" = "$root/releases"
+test "$(dirname "$current")" = "$root/releases"
 test -z "$(git -C "$previous" status --porcelain)"
 test "$(git -C "$previous" rev-parse HEAD)" = "$revision"
+restore_current() {{
+  rc=$?
+  trap - EXIT
+  if [ "$rc" -ne 0 ]; then
+    current_revision=$(basename "$current")
+    docker compose --project-name {PROJECT} \\
+      --env-file "$root/env/$current_revision.env" -f "$current/compose.yaml" \\
+      up -d --no-build worker >&2 || true
+    {_health_script(settings.worker_port, "$current_revision", min(health_timeout, 300))}
+  fi
+  exit "$rc"
+}}
+trap restore_current EXIT
 docker compose --project-name {PROJECT} --env-file "$root/env/$revision.env" \\
   -f "$previous/compose.yaml" up -d --no-build worker
 {_health_script(settings.worker_port, "$revision", health_timeout)}
 ln -sfn "$previous" "$root/current"
 ln -sfn "$current" "$root/previous"
+trap - EXIT
 """,
         timeout=health_timeout + 120,
     )
@@ -336,9 +372,50 @@ def _local_compose(settings: Settings, profile: RuntimeProfile | None = None) ->
     ]
 
 
+def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
+    resources = capture_resources(settings.work_dir)
+    headroom = resources.ram_available_bytes - max(2 * GiB, settings.remote_ram_reserve_bytes)
+    if headroom < GiB:
+        raise ValueError("Insufficient RAM for a bounded single-job CUDA build")
+    if resources.disk_free_bytes < max(settings.disk_reserve_bytes, 20 * GiB) + 8 * GiB:
+        raise ValueError("Insufficient disk for image build and the 20GiB reserve")
+    repo = _repo(settings)
+    revision = _clean_revision(repo)
+    builder = "pd-demo-" + revision
+    config = settings.work_dir / "buildkitd.toml"
+    config.write_text("[worker.oci]\n  max-parallelism = 1\n")
+    # Preserve only our own cached builder state while refreshing hard limits.
+    present = subprocess.run(["docker", "buildx", "inspect", builder], capture_output=True)
+    if present.returncode == 0:
+        _run(["docker", "buildx", "rm", "--keep-state", builder])
+    limit = str(min(headroom, 2 * GiB))
+    _run(
+        [
+            "docker",
+            "buildx",
+            "create",
+            "--name",
+            builder,
+            "--driver",
+            "docker-container",
+            "--driver-opt",
+            f"memory={limit},memory-swap={limit}",
+            "--driver-opt",
+            "cpu-period=100000,cpu-quota=200000,default-load=true",
+            "--buildkitd-config",
+            str(config),
+        ]
+    )
+    try:
+        _run(compose + ["build", "--builder", builder, "worker"], timeout=3600)
+    finally:
+        _run(["docker", "buildx", "stop", builder])
+
+
 def serve_linux(settings: Settings, profile: RuntimeProfile, detach: bool = True) -> dict:
     args = _local_compose(settings, profile)
-    up = ["up", "--build"] + (["-d"] if detach else []) + ["worker"]
+    _bounded_local_build(settings, args)
+    up = ["up", "--no-build"] + (["-d"] if detach else []) + ["worker"]
     output = _run(args + up, timeout=3600)
     return {"status": "started", "output": output, "port": settings.worker_port}
 

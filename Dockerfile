@@ -39,7 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=engine /opt/llama /opt/llama
 COPY --from=python /opt/python /opt/python
 COPY --from=python /app/.venv /app/.venv
-ENV PATH=/app/.venv/bin:$PATH LD_LIBRARY_PATH=/opt/llama/lib \
+ENV PATH=/app/.venv/bin:$PATH \
+    LD_LIBRARY_PATH=/opt/llama/lib:/usr/local/cuda/lib64:/usr/local/nvidia/lib:/usr/local/nvidia/lib64 \
     PDD_ENGINE_BINARY=/opt/llama/bin/llama-server \
     PDD_CACHE_DIR=/data/cache PDD_WORK_DIR=/data/work \
     PDD_HOST=0.0.0.0 PDD_WORKER_PORT=8090 PDD_GIT_REVISION=$GIT_REVISION \

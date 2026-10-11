@@ -42,7 +42,11 @@ def test_deploy_git_only_transaction_and_shell_syntax(monkeypatch, tmp_path):
     script = scripts[0]
     assert "worktree add --detach" in script
     assert "trap restore EXIT" in script
-    assert script.index("compose build worker") < script.index("compose up -d")
+    assert script.index('compose build --builder "$builder" worker') < script.index("compose up -d")
+    assert '"memory=$limit,memory-swap=$limit"' in script
+    assert "max-parallelism = 1" in script
+    assert 'docker buildx stop "$builder"' in script
+    assert "--use" not in script
     assert "rsync" not in script and "scp" not in script
     assert "org.opencontainers.image.revision" in script
     assert "SwapFree" not in script
@@ -68,3 +72,55 @@ def test_monitor_filters_own_project_and_service(monkeypatch):
     assert "label=com.docker.compose.project=pd-disaggregation-demo" in scripts[0]
     assert "label=com.docker.compose.service=worker" in scripts[0]
     assert 'docker top "$id"' in scripts[0]
+
+
+def test_local_builder_is_capped_and_stopped_on_failure(monkeypatch, tmp_path):
+    from pd_disaggregation_demo.models import ResourceSnapshot
+
+    monkeypatch.setattr(
+        operations,
+        "capture_resources",
+        lambda _: ResourceSnapshot(
+            platform="linux",
+            cpu_count=6,
+            ram_total_bytes=16 * operations.GiB,
+            ram_available_bytes=5 * operations.GiB,
+            disk_free_bytes=100 * operations.GiB,
+        ),
+    )
+    monkeypatch.setattr(operations, "_repo", lambda _: tmp_path)
+    monkeypatch.setattr(operations, "_clean_revision", lambda _: "a" * 40)
+    monkeypatch.setattr(
+        operations.subprocess, "run", lambda *a, **kw: type("Result", (), {"returncode": 1})()
+    )
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[:2] == ["compose-test", "build"]:
+            raise RuntimeError("compile OOM")
+        return ""
+
+    monkeypatch.setattr(operations, "_run", run)
+    with pytest.raises(RuntimeError, match="OOM"):
+        operations._bounded_local_build(Settings(work_dir=tmp_path), ["compose-test"])
+    assert f"memory={2 * operations.GiB},memory-swap={2 * operations.GiB}" in calls[0]
+    assert "--use" not in calls[0]
+    assert calls[-1][:3] == ["docker", "buildx", "stop"]
+    assert (tmp_path / "buildkitd.toml").read_text() == "[worker.oci]\n  max-parallelism = 1\n"
+
+
+def test_failed_manual_rollback_has_restore_trap(monkeypatch):
+    scripts = []
+
+    def ssh(settings, script, **kwargs):
+        scripts.append(script)
+        checked = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True)
+        assert checked.returncode == 0, checked.stderr
+        return '{"status":"ready"}\n'
+
+    monkeypatch.setattr(operations, "_ssh", ssh)
+    operations.rollback(Settings())
+    assert "trap restore_current EXIT" in scripts[0]
+    assert 'current_revision=$(basename "$current")' in scripts[0]
+    assert scripts[0].rfind("trap - EXIT") > scripts[0].rfind("ln -sfn")
