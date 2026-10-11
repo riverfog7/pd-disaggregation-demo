@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 from .artifacts import delete_artifact
 from .client.remote import RemoteWorker
@@ -61,7 +61,16 @@ class Pipeline:
         return await self.runtime.tokenize(prompt)
 
     @contextlib.asynccontextmanager
+    async def session(self):
+        """Own configuration and requests across one chat or benchmark sequence."""
+        async with self._request():
+            yield self
+
+    @contextlib.asynccontextmanager
     async def _request(self):
+        if self._lock.locked() and self._active is asyncio.current_task():
+            yield
+            return
         if self._lock.locked():
             raise RuntimeError("The demo supports one active request")
         async with self._lock:
@@ -114,13 +123,13 @@ class Pipeline:
 
     async def decode(
         self, artifact: PrefillArtifact, request: DecodeRequest
-    ) -> AsyncIterator[GenerationEvent]:
+    ) -> AsyncGenerator[GenerationEvent]:
         async with self._request():
             async with contextlib.aclosing(self.runtime.decode(artifact, request)) as stream:
                 async for event in stream:
                     yield event
 
-    async def generate(self, request: GenerationRequest) -> AsyncIterator[GenerationEvent]:
+    async def generate(self, request: GenerationRequest) -> AsyncGenerator[GenerationEvent]:
         async with self._request():
             start = time.perf_counter()
             if request.mode == "local":

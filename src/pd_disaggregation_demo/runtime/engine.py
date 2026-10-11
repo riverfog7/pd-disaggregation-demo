@@ -58,6 +58,7 @@ class LlamaRuntime:
         self._slots_dir = settings.work_dir / "native-slots"
         self._admission = None
         self.startup_ms = 0.0
+        self._peak_memory: dict = {}
 
     def _arguments(self, binary: Path, model_path: Path) -> list[str]:
         p = self.profile
@@ -285,20 +286,56 @@ class LlamaRuntime:
             with contextlib.suppress(asyncio.CancelledError):
                 await active
 
+    async def _sample_peak(self) -> None:
+        snapshot = await self._snapshot()
+        self._peak_memory["sample_count"] += 1
+        for source, target in [
+            ("process_rss_bytes", "process_rss_max_bytes"),
+            ("native_process_rss_bytes", "native_process_rss_max_bytes"),
+            ("swap_used_bytes", "swap_used_max_bytes"),
+            ("gpu_used_bytes", "gpu_used_max_bytes"),
+        ]:
+            value = snapshot.get(source)
+            if value is not None:
+                self._peak_memory[target] = max(value, self._peak_memory.get(target, value))
+        for source, target in [
+            ("ram_available_bytes", "ram_available_min_bytes"),
+            ("gpu_free_bytes", "gpu_free_min_bytes"),
+        ]:
+            value = snapshot.get(source)
+            if value is not None:
+                self._peak_memory[target] = min(value, self._peak_memory.get(target, value))
+
+    async def _monitor_memory(self) -> None:
+        while True:
+            await asyncio.sleep(0.1)
+            try:
+                await self._sample_peak()
+            except Exception as error:
+                self._peak_memory["sampling_error"] = str(error)
+                return
+
     @contextlib.asynccontextmanager
     async def _slot(self):
         if self._lock.locked():
             raise RuntimeError("Runtime supports one active request")
         async with self._lock:
             self._active = asyncio.current_task()
+            self._peak_memory = {"sample_period_ms": 100, "sample_count": 0}
+            monitor = None
             try:
+                await self._sample_peak()
+                monitor = asyncio.create_task(self._monitor_memory())
                 yield
             finally:
-                # Closing the HTTP stream disconnects and cancels the native task.
-                # Erase waits for that native task to release its slot.
+                # Close native streams before erase so cancellation releases the slot.
                 try:
                     await self._erase()
                 finally:
+                    if monitor:
+                        monitor.cancel()
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await monitor
                     self._active = None
 
     def _check_context(self, tokens: list[int], output: int = 1) -> None:
@@ -354,6 +391,7 @@ class LlamaRuntime:
                 state = directory / "state.bin"
                 await asyncio.to_thread(shutil.move, temporary, state)
                 digest = await asyncio.to_thread(sha256_file, state)
+                await self._sample_peak()
                 artifact = PrefillArtifact(
                     manifest=ArtifactManifest(
                         artifact_id=artifact_id,
@@ -372,6 +410,11 @@ class LlamaRuntime:
                             "native_prefill_ms": timings.get("prompt_ms", 0),
                             "prefill_tps": timings.get("prompt_per_second", 0),
                             "native_save_ms": saved.get("timings", {}).get("save_ms", 0),
+                            "peak_process_rss_bytes": self._peak_memory.get(
+                                "process_rss_max_bytes", 0
+                            ),
+                            "peak_gpu_used_bytes": self._peak_memory.get("gpu_used_max_bytes", 0),
+                            "memory_sample_count": self._peak_memory["sample_count"],
                         },
                     ),
                     state_path=state,
@@ -470,6 +513,7 @@ class LlamaRuntime:
             "return_tokens": True,
             "timings_per_token": True,
         }
+        metrics.memory["peak"] = self._peak_memory
         text_parts: list[str] = []
         first_token: float | None = None
         last_token: float | None = None
@@ -536,6 +580,7 @@ class LlamaRuntime:
         if first_token and last_token and last_token > first_token and received_tokens > 1:
             metrics.client_decode_tps = (received_tokens - 1) / (last_token - first_token)
         metrics.memory["after"] = await self._snapshot()
+        await self._sample_peak()
         metrics.total_ms = elapsed_ms(start)
         result = GenerationResult(
             mode="split" if cached else "local",

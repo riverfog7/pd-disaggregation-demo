@@ -471,3 +471,43 @@ async def test_export_disk_reserve_rechecked_before_native_work(native, monkeypa
     with pytest.raises(AdmissionError, match="State disk admission"):
         await runtime.prefill([1, 2, 3, 4])
     assert server.calls == []
+
+
+async def test_pipeline_session_owns_entire_sequence_and_is_reentrant(tmp_path):
+    pipeline = Pipeline(Settings(work_dir=tmp_path))
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def owner():
+        async with pipeline.session():
+            async with pipeline._request():
+                assert pipeline._active is asyncio.current_task()
+            assert pipeline._lock.locked()
+            entered.set()
+            await release.wait()
+
+    task = asyncio.create_task(owner())
+    await entered.wait()
+    with pytest.raises(RuntimeError, match="one active"):
+        async with pipeline.session():
+            pass
+    release.set()
+    await task
+    assert not pipeline._lock.locked()
+    await pipeline.close()
+
+
+async def test_memory_peak_monitor_retains_intermediate_maximum(native):
+    runtime, _ = native
+    rss = iter([10, 30, 20])
+
+    async def snapshot():
+        return {"process_rss_bytes": next(rss), "ram_available_bytes": 100}
+
+    runtime._snapshot = snapshot
+    runtime._peak_memory = {"sample_count": 0, "sample_period_ms": 100}
+    await runtime._sample_peak()
+    await runtime._sample_peak()
+    await runtime._sample_peak()
+    assert runtime._peak_memory["process_rss_max_bytes"] == 30
+    assert runtime._peak_memory["sample_count"] == 3
