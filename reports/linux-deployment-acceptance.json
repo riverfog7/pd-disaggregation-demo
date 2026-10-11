@@ -1,0 +1,49 @@
+{
+  "created_at": "2026-10-11T08:51:17.545814+00:00",
+  "source_transport": "Git push/fetch; clean exact-SHA deployment worktrees",
+  "image_engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+  "docker_cli_start_status_stop": "passed on committed 6f0cb1d951642ee7a5baac01288d0128f78368fb using persistent asset binds",
+  "port_refusal": {
+    "git_revision": "6f0cb1d951642ee7a5baac01288d0128f78368fb",
+    "command": "PDD_WORKER_PORT=8099 PDD_WORK_DIR=/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/6f0cb1d951642ee7a5baac01288d0128f78368fb/.pd-demo /home/riverfog7/.local/bin/uv run --no-dev pd-demo serve linux --detach",
+    "exit_code": 1,
+    "stdout": "",
+    "stderr": "Using CPython 3.13.11\nCreating virtual environment at: .venv\n   Building pd-disaggregation-demo @ file:///home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/6f0cb1d951642ee7a5baac01288d0128f78368fb\n      Built pd-disaggregation-demo @ file:///home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/6f0cb1d951642ee7a5baac01288d0128f78368fb\nInstalled 40 packages in 113ms\nError: Worker port is occupied by an unrelated listener; refusing build\n",
+    "elapsed_seconds": 1.5159295330522582,
+    "refused_before_build": true,
+    "owned_listener_closed": true
+  },
+  "rollback_round_trip": [
+    {
+      "operation": "rollback-to-previous",
+      "status": "ready",
+      "git_revision": "6f0cb1d951642ee7a5baac01288d0128f78368fb",
+      "profile": {
+        "model_id": "qwen3.5-0.8b",
+        "cache_type": "f16",
+        "context_size": 2048,
+        "batch_size": 512,
+        "ubatch_size": 128,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      }
+    },
+    {
+      "operation": "rollback-to-current",
+      "status": "ready",
+      "git_revision": "b750dc900470250cefd086087f6f25e90a7a3b74",
+      "profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 8320,
+        "batch_size": 512,
+        "ubatch_size": 128,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      }
+    }
+  ],
+  "unrelated_workloads_modified": false
+}

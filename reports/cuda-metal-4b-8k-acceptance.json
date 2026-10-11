@@ -1,0 +1,1109 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-11T08:36:12.861575+00:00",
+  "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+  "model_id": "qwen3.5-4b",
+  "scope": "specific deterministic native runs; same-backend continuations must agree; cross-device and cross-cache numerical comparisons are observations",
+  "prompt": "benchmark exact_tokens corpus",
+  "requested_prompt_tokens": 8192,
+  "context_size": 8448,
+  "max_tokens": 24,
+  "local": [
+    {
+      "cache_type": "f16",
+      "startup_ms": 2536.0570419870783,
+      "prompt_tokens": 8192,
+      "requested_prompt_tokens": 8192,
+      "actual_canonical_tokens": 8192,
+      "artifact": {
+        "source_backend": "metal",
+        "prefix_tokens": 8191,
+        "state_bytes": 321323820,
+        "state_sha256": "6f1f4e90132f23d17f8c6ff80591cbfac8e6e1ad2dc077ae811126a3adaf843d",
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "f16",
+          "cache_type_v": "f16",
+          "context_size": 8448,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "timings": {
+          "prefill_ms": 21210.22512500349,
+          "export_ms": 273.0273750057677,
+          "native_prefill_ms": 21186.633,
+          "prefill_tps": 386.61169049371836,
+          "native_save_ms": 40.605,
+          "peak_process_rss_bytes": 3365486592.0,
+          "memory_sample_count": 167.0,
+          "memory_sample_period_ms": 100.0
+        }
+      },
+      "direct": {
+        "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+        "token_ids": [
+          32,
+          4098,
+          42903,
+          9064,
+          41054,
+          1330,
+          12282,
+          1608,
+          279,
+          1788,
+          8240,
+          314,
+          10885,
+          13,
+          561,
+          829,
+          7320,
+          6228,
+          11036,
+          449,
+          6149,
+          2128,
+          11,
+          321
+        ],
+        "metrics": {
+          "ttft_ms": 20899.54895900155,
+          "prefill_ms": 20855.485,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 826.753,
+          "total_ms": 21826.596583996434,
+          "prefill_tps": 392.7983453753293,
+          "decode_tps": 27.81967528391188,
+          "client_decode_tps": 27.63709591433215,
+          "state_bytes": 0,
+          "cache_n": 0,
+          "prompt_n": 8192,
+          "memory_peak": {
+            "sample_period_ms": 100,
+            "sample_count": 178,
+            "process_rss_max_bytes": 3348201472,
+            "native_process_rss_max_bytes": 3273474048,
+            "swap_used_max_bytes": 1703936,
+            "ram_available_min_bytes": 18547195904
+          }
+        }
+      },
+      "same_artifact_restored_twice": [
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 341.97583299828693,
+            "prefill_ms": 21210.22512500349,
+            "export_ms": 273.0273750057677,
+            "transfer_ms": 0.0,
+            "restore_ms": 92.1786249964498,
+            "final_prompt_ms": 34.269,
+            "decode_ms": 454.542,
+            "total_ms": 948.1628750072559,
+            "prefill_tps": 386.61169049371836,
+            "decode_tps": 50.600384562922684,
+            "client_decode_tps": 50.604392460248825,
+            "state_bytes": 321323820,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3365912576,
+              "native_process_rss_max_bytes": 3290791936,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 18803785728
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 408.87554199434817,
+            "prefill_ms": 21210.22512500349,
+            "export_ms": 273.0273750057677,
+            "transfer_ms": 0.0,
+            "restore_ms": 89.1462920117192,
+            "final_prompt_ms": 45.357,
+            "decode_ms": 480.056,
+            "total_ms": 1153.3367090014508,
+            "prefill_tps": 386.61169049371836,
+            "decode_tps": 47.911077041011886,
+            "client_decode_tps": 46.81059567947122,
+            "state_bytes": 321323820,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 8,
+              "process_rss_max_bytes": 3367550976,
+              "native_process_rss_max_bytes": 3291168768,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 18784944128
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "repeat_comparison": {
+        "same_text": true,
+        "same_tokens": true,
+        "first_token_difference": null,
+        "expected_tokens": 24,
+        "actual_tokens": 24
+      },
+      "rejections": [
+        {
+          "case": "corrupt",
+          "rejected": true,
+          "reason": "Artifact state SHA256 mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "truncated",
+          "rejected": true,
+          "reason": "Artifact state size mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "missing",
+          "rejected": true,
+          "reason": "Artifact state file is missing",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "expired",
+          "rejected": true,
+          "reason": "Prefill artifact has expired",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "incompatible",
+          "rejected": true,
+          "reason": "Artifact fingerprint does not match decode runtime",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "canonical_token_ids_sha256": "db842b9a06970636d63b7091951fa9735aa86d90f1299966adf4ffe68e125ce9"
+    },
+    {
+      "cache_type": "q8_0",
+      "startup_ms": 2117.3491249937797,
+      "prompt_tokens": 8192,
+      "requested_prompt_tokens": 8192,
+      "actual_canonical_tokens": 8192,
+      "artifact": {
+        "source_backend": "metal",
+        "prefix_tokens": 8191,
+        "state_bytes": 195510060,
+        "state_sha256": "477b7791707cb7a4eae4ef85944b156d6b1cfdbbec769bf163360e0463f9b7c9",
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 8448,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "timings": {
+          "prefill_ms": 22924.427958001615,
+          "export_ms": 458.6460839927895,
+          "native_prefill_ms": 22862.765,
+          "prefill_tps": 358.2681272365788,
+          "native_save_ms": 106.928,
+          "peak_process_rss_bytes": 3241934848.0,
+          "memory_sample_count": 129.0,
+          "memory_sample_period_ms": 100.0
+        }
+      },
+      "direct": {
+        "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+        "token_ids": [
+          32,
+          4098,
+          42903,
+          9064,
+          41054,
+          1330,
+          12282,
+          1608,
+          279,
+          1788,
+          8240,
+          314,
+          10885,
+          13,
+          561,
+          829,
+          7320,
+          6228,
+          11036,
+          449,
+          6149,
+          2128,
+          11,
+          321
+        ],
+        "metrics": {
+          "ttft_ms": 25517.019124992657,
+          "prefill_ms": 25454.115,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 1241.087,
+          "total_ms": 26824.2592089955,
+          "prefill_tps": 321.8340138716274,
+          "decode_tps": 18.53214158233871,
+          "client_decode_tps": 18.80759505531975,
+          "state_bytes": 0,
+          "cache_n": 0,
+          "prompt_n": 8192,
+          "memory_peak": {
+            "sample_period_ms": 100,
+            "sample_count": 204,
+            "process_rss_max_bytes": 3232694272,
+            "native_process_rss_max_bytes": 3144826880,
+            "swap_used_max_bytes": 1703936,
+            "ram_available_min_bytes": 18837471232
+          }
+        }
+      },
+      "same_artifact_restored_twice": [
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 267.68445799825713,
+            "prefill_ms": 22924.427958001615,
+            "export_ms": 458.6460839927895,
+            "transfer_ms": 0.0,
+            "restore_ms": 54.84420800348744,
+            "final_prompt_ms": 46.444,
+            "decode_ms": 1084.348,
+            "total_ms": 1465.8711249940097,
+            "prefill_tps": 358.2681272365788,
+            "decode_tps": 21.21090277291054,
+            "client_decode_tps": 21.135145702688703,
+            "state_bytes": 195510060,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3242065920,
+              "native_process_rss_max_bytes": 3154198528,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 19100549120
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 366.5962500090245,
+            "prefill_ms": 22924.427958001615,
+            "export_ms": 458.6460839927895,
+            "transfer_ms": 0.0,
+            "restore_ms": 57.69812500511762,
+            "final_prompt_ms": 40.457,
+            "decode_ms": 1237.561,
+            "total_ms": 1929.18516699865,
+            "prefill_tps": 358.2681272365788,
+            "decode_tps": 18.58494247960303,
+            "client_decode_tps": 18.73742034778683,
+            "state_bytes": 195510060,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3242115072,
+              "native_process_rss_max_bytes": 3154247680,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 18702876672
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "repeat_comparison": {
+        "same_text": true,
+        "same_tokens": true,
+        "first_token_difference": null,
+        "expected_tokens": 24,
+        "actual_tokens": 24
+      },
+      "rejections": [
+        {
+          "case": "corrupt",
+          "rejected": true,
+          "reason": "Artifact state SHA256 mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "truncated",
+          "rejected": true,
+          "reason": "Artifact state size mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "missing",
+          "rejected": true,
+          "reason": "Artifact state file is missing",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "expired",
+          "rejected": true,
+          "reason": "Prefill artifact has expired",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "incompatible",
+          "rejected": true,
+          "reason": "Artifact fingerprint does not match decode runtime",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "canonical_token_ids_sha256": "db842b9a06970636d63b7091951fa9735aa86d90f1299966adf4ffe68e125ce9"
+    }
+  ],
+  "cuda_to_metal": [
+    {
+      "cache_type": "f16",
+      "requested_prompt_tokens": 8192,
+      "actual_canonical_tokens": 8192,
+      "remote_profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "f16",
+        "context_size": 8448,
+        "batch_size": 512,
+        "ubatch_size": 128,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "artifact": {
+        "source_backend": "cuda",
+        "prefix_tokens": 8191,
+        "state_bytes": 321323820,
+        "state_sha256": "dbd3ec7264523c6d2982d55f2c1bef93ac8fd93562ded925a0a1eea26face76d",
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "f16",
+          "cache_type_v": "f16",
+          "context_size": 8448,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "timings": {
+          "prefill_ms": 4009.731210069731,
+          "export_ms": 865.7109739724547,
+          "native_prefill_ms": 4001.269,
+          "prefill_tps": 2047.1005573481814,
+          "native_save_ms": 182.16,
+          "peak_process_rss_bytes": 1173155840.0,
+          "peak_gpu_used_bytes": 3758751744.0,
+          "memory_sample_count": 45.0,
+          "memory_sample_period_ms": 100.0
+        }
+      },
+      "transfer_ms": 91335.70670799236,
+      "restored_twice": [
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 339.20883300015703,
+            "prefill_ms": 4009.731210069731,
+            "export_ms": 865.7109739724547,
+            "transfer_ms": 0.0,
+            "restore_ms": 83.0950420058798,
+            "final_prompt_ms": 43.577,
+            "decode_ms": 422.164,
+            "total_ms": 803.4144999983255,
+            "prefill_tps": 2047.1005573481814,
+            "decode_tps": 54.48119688083304,
+            "client_decode_tps": 54.48167541054733,
+            "state_bytes": 321323820,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3378364416,
+              "native_process_rss_max_bytes": 3291430912,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 18882396160
+            }
+          },
+          "comparison_with_metal_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 332.0333750016289,
+            "prefill_ms": 4009.731210069731,
+            "export_ms": 865.7109739724547,
+            "transfer_ms": 0.0,
+            "restore_ms": 83.96341699699406,
+            "final_prompt_ms": 21.402,
+            "decode_ms": 672.974,
+            "total_ms": 1092.0194589998573,
+            "prefill_tps": 2047.1005573481814,
+            "decode_tps": 34.17665467016556,
+            "client_decode_tps": 34.863554937449614,
+            "state_bytes": 321323820,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3378446336,
+              "native_process_rss_max_bytes": 3291447296,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 18769575936
+            }
+          },
+          "comparison_with_metal_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "repeat_comparison": {
+        "same_text": true,
+        "same_tokens": true,
+        "first_token_difference": null,
+        "expected_tokens": 24,
+        "actual_tokens": 24
+      },
+      "rejections": [
+        {
+          "case": "corrupt",
+          "rejected": true,
+          "reason": "Artifact state SHA256 mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "truncated",
+          "rejected": true,
+          "reason": "Artifact state size mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "missing",
+          "rejected": true,
+          "reason": "Artifact state file is missing",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "expired",
+          "rejected": true,
+          "reason": "Prefill artifact has expired",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "incompatible",
+          "rejected": true,
+          "reason": "Artifact fingerprint does not match decode runtime",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ]
+    },
+    {
+      "cache_type": "q8_0",
+      "requested_prompt_tokens": 8192,
+      "actual_canonical_tokens": 8192,
+      "remote_profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 8448,
+        "batch_size": 512,
+        "ubatch_size": 128,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "artifact": {
+        "source_backend": "cuda",
+        "prefix_tokens": 8191,
+        "state_bytes": 195510060,
+        "state_sha256": "34443bb03ae23943cafe8449efa1934c0235e0cb208d5f8e65a7e8de07dfa2be",
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 8448,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "timings": {
+          "prefill_ms": 4083.671682048589,
+          "export_ms": 527.1775790024549,
+          "native_prefill_ms": 4076.806,
+          "prefill_tps": 2009.1709048701362,
+          "native_save_ms": 110.35,
+          "peak_process_rss_bytes": 1170120704.0,
+          "peak_gpu_used_bytes": 3662282752.0,
+          "memory_sample_count": 43.0,
+          "memory_sample_period_ms": 100.0
+        }
+      },
+      "transfer_ms": 62311.62841600599,
+      "restored_twice": [
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 247.93974999920465,
+            "prefill_ms": 4083.671682048589,
+            "export_ms": 527.1775790024549,
+            "transfer_ms": 0.0,
+            "restore_ms": 52.01987500186078,
+            "final_prompt_ms": 43.896,
+            "decode_ms": 642.538,
+            "total_ms": 987.6761669875123,
+            "prefill_tps": 2009.1709048701362,
+            "decode_tps": 35.79554827885666,
+            "client_decode_tps": 35.16348666129731,
+            "state_bytes": 195510060,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3243032576,
+              "native_process_rss_max_bytes": 3154706432,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 19170639872
+            }
+          },
+          "comparison_with_metal_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "text": "A distributed inference experiment compares two machines using the same sequence of tokens. The prefill stage processes an existing document, and",
+          "token_ids": [
+            32,
+            4098,
+            42903,
+            9064,
+            41054,
+            1330,
+            12282,
+            1608,
+            279,
+            1788,
+            8240,
+            314,
+            10885,
+            13,
+            561,
+            829,
+            7320,
+            6228,
+            11036,
+            449,
+            6149,
+            2128,
+            11,
+            321
+          ],
+          "metrics": {
+            "ttft_ms": 225.8937500009779,
+            "prefill_ms": 4083.671682048589,
+            "export_ms": 527.1775790024549,
+            "transfer_ms": 0.0,
+            "restore_ms": 51.45354100386612,
+            "final_prompt_ms": 23.273,
+            "decode_ms": 789.078,
+            "total_ms": 1067.3114999954123,
+            "prefill_tps": 2009.1709048701362,
+            "decode_tps": 29.147942282005076,
+            "client_decode_tps": 29.147691429701993,
+            "state_bytes": 195510060,
+            "cache_n": 8191,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 9,
+              "process_rss_max_bytes": 3243098112,
+              "native_process_rss_max_bytes": 3154771968,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 19190267904
+            }
+          },
+          "comparison_with_metal_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "repeat_comparison": {
+        "same_text": true,
+        "same_tokens": true,
+        "first_token_difference": null,
+        "expected_tokens": 24,
+        "actual_tokens": 24
+      },
+      "rejections": [
+        {
+          "case": "corrupt",
+          "rejected": true,
+          "reason": "Artifact state SHA256 mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "truncated",
+          "rejected": true,
+          "reason": "Artifact state size mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "missing",
+          "rejected": true,
+          "reason": "Artifact state file is missing",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "expired",
+          "rejected": true,
+          "reason": "Prefill artifact has expired",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "incompatible",
+          "rejected": true,
+          "reason": "Artifact fingerprint does not match decode runtime",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 8191,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ]
+    }
+  ],
+  "cross_cache_comparison": {
+    "same_text": true,
+    "same_tokens": true,
+    "first_token_difference": null,
+    "expected_tokens": 24,
+    "actual_tokens": 24
+  },
+  "success": true,
+  "tested_code_revision": "2f2bffe605879be9cd847b626afcfe00e110a9cc",
+  "worker_git_revision": "6f0cb1d951642ee7a5baac01288d0128f78368fb"
+}

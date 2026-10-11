@@ -1,0 +1,145 @@
+{
+  "success": true,
+  "api_revision": "81badec97ffcc850bd98a2f494610f4d63d7a0d0",
+  "artifact_id": "4f6e0520b0da408f87c8468a8f0c4547",
+  "downloaded_bytes_at_cancel": 1048576,
+  "cancel": {
+    "status": "cancelled"
+  },
+  "cancel_elapsed_ms": 277.1629170019878,
+  "interrupted_result": "Request cancelled",
+  "local_partial_removed": true,
+  "worker_revision": "6f0cb1d951642ee7a5baac01288d0128f78368fb",
+  "worker_busy_after": false,
+  "remote_artifact_status": 404,
+  "recovery": {
+    "run_id": "150b596f4f9b4ca09b02a77ed8193478",
+    "mode": "split",
+    "model_id": "qwen3.5-0.8b",
+    "prompt_tokens": 8,
+    "generated_tokens": 8,
+    "text": "\n\n<think>\n\n</think>\n\nThe reason the",
+    "metrics": {
+      "ttft_ms": 12187.945875004516,
+      "tokenize_ms": 1.1118750117020682,
+      "prefill_ms": 24.96827009599656,
+      "export_ms": 107.09921806119382,
+      "transfer_ms": 11778.874249997898,
+      "restore_ms": 7.000832993071526,
+      "final_prompt_ms": 20.18,
+      "decode_ms": 40.269,
+      "total_ms": 12287.278749994584,
+      "prefill_tps": 375.03348513260113,
+      "decode_tps": 173.83098661501404,
+      "client_decode_tps": 174.3547045344172,
+      "state_bytes": 20288332,
+      "transfer_mbps": 13.779470988072477,
+      "cache_n": 7,
+      "prompt_n": 1,
+      "memory": {
+        "before": {
+          "timestamp": "2026-10-11T08:46:55.499867Z",
+          "platform": "darwin",
+          "cpu_count": 14,
+          "cpu_model": "Apple M4 Pro",
+          "ram_total_bytes": 51539607552,
+          "ram_available_bytes": 20867596288,
+          "swap_used_bytes": 1703936,
+          "disk_free_bytes": 150255013888,
+          "gpu_name": "Apple M4 Pro",
+          "gpu_total_bytes": null,
+          "gpu_free_bytes": null,
+          "gpu_used_bytes": null,
+          "process_rss_bytes": 944357376,
+          "metal_recommended_bytes": 40200896512,
+          "native_process_rss_bytes": 755941376
+        },
+        "peak": {
+          "sample_period_ms": 100,
+          "sample_count": 2,
+          "process_rss_max_bytes": 944390144,
+          "native_process_rss_max_bytes": 755974144,
+          "swap_used_max_bytes": 1703936,
+          "ram_available_min_bytes": 20764901376
+        },
+        "after": {
+          "timestamp": "2026-10-11T08:46:55.609556Z",
+          "platform": "darwin",
+          "cpu_count": 14,
+          "cpu_model": "Apple M4 Pro",
+          "ram_total_bytes": 51539607552,
+          "ram_available_bytes": 20764901376,
+          "swap_used_bytes": 1703936,
+          "disk_free_bytes": 150234718208,
+          "gpu_name": "Apple M4 Pro",
+          "gpu_total_bytes": null,
+          "gpu_free_bytes": null,
+          "gpu_used_bytes": null,
+          "process_rss_bytes": 944390144,
+          "metal_recommended_bytes": 40200896512,
+          "native_process_rss_bytes": 755974144
+        },
+        "remote_prefill_peak": {
+          "process_rss_max_bytes": 823054336.0,
+          "gpu_used_max_bytes": 1242169344.0,
+          "sample_count": 3.0,
+          "sample_period_ms": 100.0
+        }
+      }
+    },
+    "fingerprint": {
+      "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+      "model_sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517",
+      "cache_type_k": "f16",
+      "cache_type_v": "f16",
+      "context_size": 2048,
+      "flash_attention": true,
+      "rope_settings": {},
+      "state_format_version": 1
+    },
+    "local_profile": {
+      "model_id": "qwen3.5-0.8b",
+      "cache_type": "f16",
+      "context_size": 2048,
+      "batch_size": 512,
+      "ubatch_size": 128,
+      "gpu_layers": -1,
+      "cpu_ffn": 0,
+      "threads": 4
+    },
+    "remote_profile": {
+      "model_id": "qwen3.5-0.8b",
+      "cache_type": "f16",
+      "context_size": 2048,
+      "batch_size": 512,
+      "ubatch_size": 128,
+      "gpu_layers": -1,
+      "cpu_ffn": 0,
+      "threads": 4
+    },
+    "effective_settings": {
+      "local": {
+        "observed_from": "native /props",
+        "effective_n_ctx": 2048,
+        "total_slots": 1,
+        "effective_n_batch": null,
+        "effective_n_ubatch": null,
+        "cache_type_k": null,
+        "cache_type_v": null,
+        "build_info": "b11552-23b0202a1"
+      },
+      "remote": {
+        "observed_from": "native /props",
+        "effective_n_ctx": 2048,
+        "total_slots": 1,
+        "effective_n_batch": null,
+        "effective_n_ubatch": null,
+        "cache_type_k": null,
+        "cache_type_v": null,
+        "build_info": "b1-23b0202"
+      }
+    },
+    "success": true,
+    "error": null
+  }
+}

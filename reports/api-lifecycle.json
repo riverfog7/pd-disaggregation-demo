@@ -1,0 +1,222 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-11T08:45:38.168634+00:00",
+  "api_url": "http://127.0.0.1:8080",
+  "worker_url": "http://127.0.0.1:8090",
+  "request_timeout_seconds": 1200.0,
+  "scope": "HTTP cancellation/disconnect and request recovery; no process control",
+  "cases": [
+    {
+      "action": "cancel",
+      "mode": "local",
+      "observed_phase": {
+        "kind": "token",
+        "stage": ""
+      },
+      "delay_seconds": 0.1,
+      "interruption_ms": 171.96591600077227,
+      "cancel_response": {
+        "status": "cancelled"
+      },
+      "recovery": {
+        "text": "\n\n<think>\n\n</think>\n\nThe sky appears",
+        "token_ids": [
+          271,
+          248068,
+          271,
+          248069,
+          271,
+          760,
+          12515,
+          7701
+        ],
+        "generated_tokens": 8,
+        "cache_n": 0,
+        "prompt_n": 11,
+        "ttft_ms": 54.60537500039209,
+        "total_ms": 160.02462500182446
+      }
+    },
+    {
+      "action": "disconnect",
+      "mode": "local",
+      "observed_phase": {
+        "kind": "token",
+        "stage": ""
+      },
+      "delay_seconds": 0.1,
+      "interruption_ms": 178.52462499286048,
+      "cancel_response": null,
+      "recovery": {
+        "text": "\n\n<think>\n\n</think>\n\nThe sky appears",
+        "token_ids": [
+          271,
+          248068,
+          271,
+          248069,
+          271,
+          760,
+          12515,
+          7701
+        ],
+        "generated_tokens": 8,
+        "cache_n": 0,
+        "prompt_n": 11,
+        "ttft_ms": 61.879165994469076,
+        "total_ms": 181.31450000510085
+      }
+    },
+    {
+      "action": "cancel",
+      "mode": "split",
+      "observed_phase": {
+        "kind": "stage",
+        "stage": "remote_prefill"
+      },
+      "delay_seconds": 0.1,
+      "interruption_ms": 185.72945799678564,
+      "cancel_response": {
+        "status": "cancelled"
+      },
+      "recovery": {
+        "text": "\n\n<think>\n\n</think>\n\nThe sky appears",
+        "token_ids": [
+          271,
+          248068,
+          271,
+          248069,
+          271,
+          760,
+          12515,
+          7701
+        ],
+        "generated_tokens": 8,
+        "cache_n": 10,
+        "prompt_n": 1,
+        "ttft_ms": 5174.519749998581,
+        "total_ms": 5256.360665996908
+      }
+    },
+    {
+      "action": "disconnect",
+      "mode": "split",
+      "observed_phase": {
+        "kind": "stage",
+        "stage": "remote_prefill"
+      },
+      "delay_seconds": 0.1,
+      "interruption_ms": 103.44287499901839,
+      "cancel_response": null,
+      "recovery": {
+        "text": "\n\n<think>\n\n</think>\n\nThe sky appears",
+        "token_ids": [
+          271,
+          248068,
+          271,
+          248069,
+          271,
+          760,
+          12515,
+          7701
+        ],
+        "generated_tokens": 8,
+        "cache_n": 10,
+        "prompt_n": 1,
+        "ttft_ms": 9011.074708003434,
+        "total_ms": 9113.988583005266
+      }
+    }
+  ],
+  "worker_failure": {
+    "error": "Remote worker GET /health at http://127.0.0.1:8090 failed: ReadError (no transport detail). Check that the worker API is running and reachable; if using an SSH tunnel, verify its remote destination and worker port.",
+    "local_recovery": {
+      "text": "\n\n<think>\n\n</think>\n\nThe sky appears",
+      "token_ids": [
+        271,
+        248068,
+        271,
+        248069,
+        271,
+        760,
+        12515,
+        7701
+      ],
+      "generated_tokens": 8,
+      "cache_n": 0,
+      "prompt_n": 11,
+      "ttft_ms": 72.18329200986773,
+      "total_ms": 241.1662500089733
+    },
+    "split_recovery": {
+      "text": "\n\n<think>\n\n</think>\n\nThe sky appears",
+      "token_ids": [
+        271,
+        248068,
+        271,
+        248069,
+        271,
+        760,
+        12515,
+        7701
+      ],
+      "generated_tokens": 8,
+      "cache_n": 10,
+      "prompt_n": 1,
+      "ttft_ms": 7092.656332999468,
+      "total_ms": 7175.363957998343
+    }
+  },
+  "success": true,
+  "api_before": {
+    "status": "ready",
+    "git_revision": "81badec97ffcc850bd98a2f494610f4d63d7a0d0",
+    "profile": {
+      "model_id": "qwen3.5-0.8b",
+      "cache_type": "f16",
+      "context_size": 2048,
+      "batch_size": 512,
+      "ubatch_size": 128,
+      "gpu_layers": -1,
+      "cpu_ffn": 0,
+      "threads": 4
+    },
+    "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+    "busy": null
+  },
+  "worker_before": {
+    "status": "unavailable",
+    "error": "ReadError: "
+  },
+  "api_after": {
+    "status": "ready",
+    "git_revision": "81badec97ffcc850bd98a2f494610f4d63d7a0d0",
+    "profile": {
+      "model_id": "qwen3.5-0.8b",
+      "cache_type": "f16",
+      "context_size": 2048,
+      "batch_size": 512,
+      "ubatch_size": 128,
+      "gpu_layers": -1,
+      "cpu_ffn": 0,
+      "threads": 4
+    },
+    "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+    "busy": null
+  },
+  "worker_after": {
+    "status": "ready",
+    "git_revision": "6f0cb1d951642ee7a5baac01288d0128f78368fb",
+    "profile": {
+      "model_id": "qwen3.5-0.8b",
+      "cache_type": "f16",
+      "context_size": 2048,
+      "batch_size": 512,
+      "ubatch_size": 128,
+      "gpu_layers": -1,
+      "cpu_ffn": 0,
+      "threads": 4
+    },
+    "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+    "busy": false
+  }
+}

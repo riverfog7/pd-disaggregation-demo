@@ -1,0 +1,38 @@
+{
+  "worker_revision": "6f0cb1d951642ee7a5baac01288d0128f78368fb",
+  "requested_profile": {
+    "model_id": "qwen3.5-27b",
+    "cache_type": "f16",
+    "context_size": 262144,
+    "batch_size": 512,
+    "ubatch_size": 128,
+    "gpu_layers": -1,
+    "cpu_ffn": 0,
+    "threads": 4
+  },
+  "status_code": 422,
+  "body": {
+    "detail": {
+      "code": "admission_refused",
+      "message": "Memory admission refused: Worker cgroup has 6,344,785,920 bytes available; load requires 36,020,091,799 bytes without using swap; RAM requires 38,167,575,447 bytes including reserve; 11,531,411,456 available (swap is not capacity); VRAM requires 37,664,258,967 bytes including reserve; 8,071,282,688 free"
+    }
+  },
+  "profile_restored": true,
+  "status_after": "ready",
+  "resources_after": {
+    "timestamp": "2026-10-11T08:47:30.536514Z",
+    "platform": "linux",
+    "cpu_count": 6,
+    "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+    "ram_total_bytes": 16605392896,
+    "ram_available_bytes": 11100409856,
+    "swap_used_bytes": 1144156160,
+    "disk_free_bytes": 157826936832,
+    "gpu_name": "NVIDIA GeForce RTX 2080",
+    "gpu_total_bytes": 8589934592,
+    "gpu_free_bytes": 7351959552,
+    "gpu_used_bytes": 1237975040,
+    "process_rss_bytes": 779259904,
+    "metal_recommended_bytes": null
+  }
+}
