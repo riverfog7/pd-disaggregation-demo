@@ -254,17 +254,22 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                     label="Minimum context tokens",
                 )
                 batch = gr.Number(
-                    value=pipeline.profile.batch_size, precision=0, minimum=1, label="Batch tokens"
+                    value=pipeline.profile.batch_size,
+                    precision=0,
+                    minimum=1,
+                    label="Mac batch tokens",
                 )
                 ubatch = gr.Number(
                     value=pipeline.profile.ubatch_size,
                     precision=0,
                     minimum=1,
-                    label="Microbatch tokens",
+                    label="Mac microbatch tokens",
                 )
             gr.Markdown(
                 "Each size is admitted with context ≥ prompt + output. Unsafe sizes are "
-                "recorded as skipped. Loading or reloading weights is reported separately."
+                "recorded as skipped. Loading or reloading weights is reported separately. "
+                "Model, cache and context match on both machines; CUDA keeps the batch settings "
+                "chosen when launching its worker. Reports record both profiles."
             )
         with gr.Tab("Benchmark"):
             with gr.Row():
