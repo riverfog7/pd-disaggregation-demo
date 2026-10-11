@@ -7,7 +7,7 @@ import time
 
 import httpx
 
-from ..artifacts import CHUNK_SIZE, write_manifest
+from ..artifacts import CHUNK_SIZE, ensure_state_disk_space, write_manifest
 from ..config.settings import Settings
 from ..models import ArtifactManifest, PrefillArtifact, RuntimeFingerprint, RuntimeProfile
 
@@ -80,6 +80,12 @@ class RemoteWorker:
             c not in "0123456789abcdef" for c in manifest.artifact_id
         ):
             raise ValueError("Invalid artifact identifier")
+        await asyncio.to_thread(
+            ensure_state_disk_space,
+            self.settings.artifacts_dir,
+            manifest.state_bytes,
+            self.settings.disk_reserve_bytes,
+        )
         directory = self.settings.artifacts_dir / manifest.artifact_id
         directory.mkdir(parents=True, exist_ok=False)
         temporary = directory / "state.bin.part"

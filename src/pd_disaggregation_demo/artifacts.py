@@ -54,3 +54,19 @@ def delete_artifact(artifact: PrefillArtifact) -> None:
     directory = artifact.state_path.parent
     if directory.name == artifact.manifest.artifact_id:
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def ensure_state_disk_space(
+    directory: Path, state_bytes: int, reserve_bytes: int, copies: int = 2
+) -> None:
+    """Keep disk reserves intact while exporting, transferring, or restoring state."""
+    directory.mkdir(parents=True, exist_ok=True)
+    required = max(20 * 1024**3, reserve_bytes) + copies * state_bytes
+    free = shutil.disk_usage(directory).free
+    if free < required:
+        from .runtime.engine import AdmissionError
+
+        raise AdmissionError(
+            f"State disk admission refused: {required:,} bytes including reserve required; "
+            f"{free:,} free"
+        )

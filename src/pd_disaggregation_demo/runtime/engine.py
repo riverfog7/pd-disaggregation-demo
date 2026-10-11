@@ -14,7 +14,7 @@ from uuid import uuid4
 import httpx
 import psutil
 
-from ..artifacts import sha256_file, validate_artifact, write_manifest
+from ..artifacts import ensure_state_disk_space, sha256_file, validate_artifact, write_manifest
 from ..config.settings import Settings
 from ..models import (
     ArtifactManifest,
@@ -310,6 +310,13 @@ class LlamaRuntime:
         self._check_context(token_ids)
         if len(token_ids) < 2:
             raise ValueError("Prefill requires at least two canonical prompt tokens")
+        if self._admission is not None:
+            await asyncio.to_thread(
+                ensure_state_disk_space,
+                self.settings.work_dir,
+                self._admission.budgets["state_bytes"],
+                self.settings.disk_reserve_bytes,
+            )
         async with self._slot():
             await self._erase()
             start = time.perf_counter()
@@ -404,6 +411,13 @@ class LlamaRuntime:
         await asyncio.to_thread(validate_artifact, artifact, self.fingerprint)
         if artifact.manifest.model_id != self.profile.model_id:
             raise ValueError("Artifact model does not match runtime")
+        await asyncio.to_thread(
+            ensure_state_disk_space,
+            self.settings.work_dir,
+            artifact.manifest.state_bytes,
+            self.settings.disk_reserve_bytes,
+            1,
+        )
         tokens = artifact.manifest.token_ids
         self._check_context(tokens, request.max_tokens)
         m = artifact.manifest

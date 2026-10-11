@@ -458,3 +458,16 @@ async def test_native_chat_uses_model_apply_template(native):
     messages = [{"role": "user", "content": "hello"}]
     assert await runtime.format_chat(messages) == "native template prompt"
     assert observed == [("/apply-template", {"messages": messages})]
+
+
+async def test_export_disk_reserve_rechecked_before_native_work(native, monkeypatch):
+    from types import SimpleNamespace
+
+    from pd_disaggregation_demo.runtime.engine import AdmissionError
+
+    runtime, server = native
+    runtime._admission = SimpleNamespace(budgets={"state_bytes": 1024**3})
+    monkeypatch.setattr(shutil, "disk_usage", lambda path: SimpleNamespace(free=21 * 1024**3))
+    with pytest.raises(AdmissionError, match="State disk admission"):
+        await runtime.prefill([1, 2, 3, 4])
+    assert server.calls == []
