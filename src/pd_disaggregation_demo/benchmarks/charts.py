@@ -2,6 +2,7 @@ import html
 import json
 import math
 from collections import Counter
+from collections.abc import Iterable
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -33,6 +34,26 @@ def _bottom_legend():
         "entrywidthmode": "fraction",
         "maxheight": 120,
         "font": {"size": 11},
+    }
+
+
+def _prompt_ticks(sizes: Iterable[int], limit: int = 5):
+    values = sorted({size for size in sizes if size > 0})
+    if len(values) > limit:
+        gap = (math.log(values[-1]) - math.log(values[0])) / (limit - 1)
+        kept = [values[0]]
+        for size in values[1:-1]:
+            if (
+                math.log(size) - math.log(kept[-1]) >= gap
+                and math.log(values[-1]) - math.log(size) >= gap
+            ):
+                kept.append(size)
+        values = [*kept, values[-1]]
+    return {
+        "tickmode": "array",
+        "tickvals": values,
+        "ticktext": [f"{size:,}" for size in values],
+        "minorloglabels": "none",
     }
 
 
@@ -331,7 +352,12 @@ def curves(reports: list[BenchmarkReport]):
                 col=1,
             )
     figure.add_hline(y=1, line_dash="dash", line_color="#777", row=2, col=1)
-    figure.update_xaxes(type="log", tickangle=0, nticks=4, automargin=True)
+    figure.update_xaxes(
+        type="log",
+        tickangle=0,
+        automargin=True,
+        **_prompt_ticks(row["prompt_tokens"] for report in reports for row in report.summary),
+    )
     figure.update_xaxes(title_text="Prompt tokens", row=4, col=1)
     figure.update_yaxes(automargin=True, nticks=4)
     figure.update_layout(
@@ -460,7 +486,7 @@ def transfer(report: BenchmarkReport):
         margin={"l": 60, "r": 20, "t": 50, "b": 160},
         legend=_bottom_legend(),
     )
-    figure.update_xaxes(type="log", tickangle=0, nticks=4, automargin=True)
+    figure.update_xaxes(type="log", tickangle=0, automargin=True, **_prompt_ticks(x))
     figure.update_xaxes(title_text="Prompt tokens", row=2, col=1)
     figure.update_yaxes(automargin=True, nticks=4)
     figure.update_annotations(font_size=13)

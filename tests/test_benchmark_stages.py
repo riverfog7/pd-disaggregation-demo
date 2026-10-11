@@ -281,3 +281,40 @@ def test_memory_short_legend_keeps_full_metric_identity_and_values_in_hover():
     assert figure.layout.margin.b >= 190
     assert figure.layout.xaxis.tickangle == 0
     assert "short transients may be missed" in figure.layout.title.text
+
+
+@pytest.mark.parametrize("sizes", [[1024, 4096, 8192], [1024, 4096, 8192, 16384, 32768]])
+def test_log_axes_label_actual_prompt_sizes_for_three_point_and_default_runs(sizes):
+    report = report_with_pair()
+    report.summary = [
+        {"prompt_tokens": size, "local_ttft_ms": index + 1} for index, size in enumerate(sizes)
+    ]
+    for figure in (curves([report]), transfer(report)):
+        axes = [
+            value
+            for key, value in figure.to_plotly_json()["layout"].items()
+            if key.startswith("xaxis")
+        ]
+        assert axes
+        for axis in axes:
+            assert axis["type"] == "log"
+            assert axis["tickmode"] == "array"
+            assert axis["minorloglabels"] == "none"
+            assert axis["tickvals"] == sizes
+            assert axis["ticktext"] == [f"{size:,}" for size in sizes]
+    assert list(curves([report]).data[0].x) == sizes
+
+
+def test_prompt_ticks_use_comparison_union_and_thin_without_changing_data():
+    first, second = report_with_pair(), report_with_pair()
+    first.summary = [{"prompt_tokens": size} for size in (1024, 4096)]
+    second.summary = [{"prompt_tokens": size} for size in (2048, 8192)]
+    assert list(curves([first, second]).layout.xaxis.tickvals) == [1024, 2048, 4096, 8192]
+    many = [1024 * n for n in range(1, 40)]
+    first.summary = [{"prompt_tokens": size, "local_ttft_ms": size / 10} for size in many]
+    for figure in (curves([first]), transfer(first)):
+        ticks = list(figure.layout.xaxis.tickvals)
+        assert 2 <= len(ticks) <= 5
+        assert ticks[0] == many[0] and ticks[-1] == many[-1]
+        assert set(ticks) <= set(many)
+        assert list(figure.data[0].x) == many
