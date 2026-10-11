@@ -8,11 +8,13 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from pd_disaggregation_demo.backend import app as worker_module
 from pd_disaggregation_demo.backend.app import CHUNK_BYTES, _publish, create_worker_app
 from pd_disaggregation_demo.config.settings import Settings
 from pd_disaggregation_demo.models import (
     ArtifactManifest,
     PrefillArtifact,
+    ResourceSnapshot,
     RuntimeFingerprint,
 )
 
@@ -79,6 +81,19 @@ async def worker(monkeypatch, tmp_path, request):
     module.AdmissionError = type("AdmissionError", (RuntimeError,), {})
     module.LlamaRuntime = FakeRuntime
     monkeypatch.setitem(sys.modules, "pd_disaggregation_demo.runtime.engine", module)
+    monkeypatch.setattr(
+        worker_module,
+        "capture_resources",
+        lambda _: ResourceSnapshot(
+            platform="linux",
+            cpu_count=6,
+            ram_total_bytes=16 * worker_module.GiB,
+            ram_available_bytes=8 * worker_module.GiB,
+            disk_free_bytes=100 * worker_module.GiB,
+            gpu_free_bytes=5 * worker_module.GiB,
+        ),
+    )
+    monkeypatch.setattr(worker_module, "_cgroup_available", lambda: None)
     settings = Settings(
         work_dir=tmp_path, git_revision="f" * 40, artifact_ttl_seconds=getattr(request, "param", 60)
     )
@@ -174,3 +189,63 @@ async def test_admission_has_machine_readable_error_code(worker, monkeypatch):
     response = await client.post("/configure", json={})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "admission_refused"
+
+
+async def test_watchdog_cancels_only_demo_and_allows_explicit_recovery(worker, monkeypatch):
+    client, runtime, _ = worker
+    monkeypatch.setattr(worker_module, "WATCHDOG_INTERVAL_SECONDS", 0.02)
+    pressure = {"low": False}
+
+    def capture(path):
+        return ResourceSnapshot(
+            platform="linux",
+            cpu_count=6,
+            ram_total_bytes=16 * worker_module.GiB,
+            ram_available_bytes=(1 if pressure["low"] else 8) * worker_module.GiB,
+            disk_free_bytes=100 * worker_module.GiB,
+            gpu_free_bytes=5 * worker_module.GiB,
+        )
+
+    monkeypatch.setattr(worker_module, "capture_resources", capture)
+    runtime.block = True
+    request = asyncio.create_task(client.post("/prefill", json={"token_ids": [1, 2]}))
+    await runtime.entered.wait()
+    pressure["low"] = True
+    response = await asyncio.wait_for(request, 2)
+    assert response.status_code == 409 and runtime.cleaned
+    deadline = asyncio.get_running_loop().time() + 2
+    while not runtime.closed and asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(0.01)
+    assert runtime.closed
+    health = (await client.get("/health")).json()
+    assert health["status"] == "resource_refused"
+    assert health["error"]["code"] == "resource_pressure"
+    assert health["error"]["samples"] >= 3
+    assert (await client.post("/prefill", json={"token_ids": [1, 2]})).status_code == 503
+    pressure["low"] = False
+    runtime.block = False
+    assert (await client.post("/configure", json={})).status_code == 200
+    assert (await client.get("/health")).json()["error"] is None
+    assert (await client.post("/prefill", json={"token_ids": [1, 2]})).status_code == 200
+
+
+async def test_watchdog_transient_pressure_does_not_stop_worker(worker, monkeypatch):
+    client, runtime, _ = worker
+    monkeypatch.setattr(worker_module, "WATCHDOG_INTERVAL_SECONDS", 0.02)
+    samples = {"count": 0}
+
+    def capture(path):
+        samples["count"] += 1
+        return ResourceSnapshot(
+            platform="linux",
+            cpu_count=6,
+            ram_total_bytes=16 * worker_module.GiB,
+            ram_available_bytes=(1 if samples["count"] == 1 else 8) * worker_module.GiB,
+            disk_free_bytes=100 * worker_module.GiB,
+            gpu_free_bytes=5 * worker_module.GiB,
+        )
+
+    monkeypatch.setattr(worker_module, "capture_resources", capture)
+    await asyncio.sleep(0.12)
+    assert not runtime.closed
+    assert (await client.get("/health")).json()["error"] is None

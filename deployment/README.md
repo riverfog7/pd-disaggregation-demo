@@ -77,3 +77,12 @@ host. Large profiles such as 27B can therefore be rejected even with CPU FFN
 placement. A safe future relaxation requires measured architecture-specific
 weight residency, compute/cache peaks and mmap behavior; this release does not
 claim that an unmeasured placement is safe.
+
+The worker watchdog samples host RAM, GPU free memory and its own cgroup every
+0.5 seconds. Three consecutive samples below the host/GPU reserve (or below
+64MiB cgroup allocation headroom) cancel only the active demo request and close
+its owned native engine. Health becomes `resource_refused` with
+`error.code="resource_pressure"` and the triggering snapshot. New prefill requests
+are rejected until explicit `/configure` restarts the runtime through admission.
+A transient single sample does not stop a request. The worker never restarts
+itself repeatedly or stops an unrelated workload to recover capacity.

@@ -13,9 +13,11 @@ from fastapi.responses import StreamingResponse
 
 from ..config.settings import Settings
 from ..models import ArtifactManifest, PrefillRequest, RuntimeProfile
-from ..resources import capture_resources
+from ..resources import GiB, MiB, _cgroup_available, capture_resources
 
 CHUNK_BYTES = 1024 * 1024
+WATCHDOG_INTERVAL_SECONDS = 0.5
+WATCHDOG_PERSISTENT_SAMPLES = 3
 
 
 def _artifact_directory(root: Path, artifact_id: str) -> Path:
@@ -78,6 +80,58 @@ def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfi
     slot = asyncio.Lock()
     active: asyncio.Task | None = None
     downloads: dict[str, int] = {}
+    pressure_error: dict | None = None
+    pressure_stopping = False
+
+    async def watchdog(runtime):
+        nonlocal pressure_error, pressure_stopping
+        consecutive = 0
+        while True:
+            await asyncio.sleep(WATCHDOG_INTERVAL_SECONDS)
+            snapshot = await asyncio.to_thread(capture_resources, settings.work_dir)
+            cgroup_available = await asyncio.to_thread(_cgroup_available)
+            reasons = []
+            if snapshot.ram_available_bytes < max(2 * GiB, settings.remote_ram_reserve_bytes):
+                reasons.append("Host RAM fell below the 2GiB reserve")
+            if snapshot.gpu_free_bytes is None:
+                reasons.append("GPU free memory could not be measured")
+            elif snapshot.gpu_free_bytes < max(GiB, settings.gpu_reserve_bytes):
+                reasons.append("GPU free memory fell below the 1GiB reserve")
+            # Host headroom is reserved above, once. Cgroup space is a separate
+            # emergency cushion before the demo's hard memory limit is reached.
+            if cgroup_available is not None and cgroup_available < 64 * MiB:
+                reasons.append("Demo cgroup has less than 64MiB allocation headroom")
+            app.state.resource_watchdog = {
+                "resources": snapshot.model_dump(mode="json"),
+                "cgroup_available_bytes": cgroup_available,
+                "reasons": reasons,
+            }
+            if pressure_error is not None:
+                consecutive = 0
+                continue
+            consecutive = consecutive + 1 if reasons else 0
+            if consecutive < WATCHDOG_PERSISTENT_SAMPLES:
+                continue
+            pressure_error = {
+                "code": "resource_pressure",
+                "message": "; ".join(reasons),
+                "samples": consecutive,
+                "resources": snapshot.model_dump(mode="json"),
+                "cgroup_available_bytes": cgroup_available,
+            }
+            pressure_stopping = True
+            # Cancel only this worker's active request, let native slot cleanup
+            # complete, then close only its owned llama-server process.
+            task = active
+            if task and not task.done():
+                task.cancel()
+                with suppress(asyncio.CancelledError, Exception):
+                    await task
+            try:
+                async with slot:
+                    await runtime.close()
+            finally:
+                pressure_stopping = False
 
     async def reap():
         while True:
@@ -113,11 +167,17 @@ def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfi
         runtime = LlamaRuntime(settings, profile=profile, backend="cuda")
         app.state.runtime = runtime
         reaper = None
+        watcher = None
         try:
             await runtime.start()
             reaper = asyncio.create_task(reap())
+            watcher = asyncio.create_task(watchdog(runtime))
             yield
         finally:
+            if watcher:
+                watcher.cancel()
+                with suppress(asyncio.CancelledError):
+                    await watcher
             if active and not active.done():
                 active.cancel()
                 with suppress(asyncio.CancelledError):
@@ -138,12 +198,16 @@ def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfi
             engine_health = engine_health.model_dump(mode="json")
         fingerprint = runtime.fingerprint
         return {
-            "status": engine_health.get("status", "unknown"),
+            "status": "resource_refused"
+            if pressure_error
+            else engine_health.get("status", "unknown"),
             "engine": engine_health,
             "busy": slot.locked(),
             "profile": runtime.profile.model_dump(mode="json"),
             "fingerprint": fingerprint.model_dump(mode="json") if fingerprint else None,
             "git_revision": settings.git_revision,
+            "error": pressure_error,
+            "watchdog": getattr(app.state, "resource_watchdog", None),
             "resources": (await asyncio.to_thread(capture_resources, settings.work_dir)).model_dump(
                 mode="json"
             ),
@@ -161,8 +225,14 @@ def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfi
             "git_revision": settings.git_revision,
         }
 
-    async def run_in_slot(operation):
+    async def run_in_slot(operation, *, recover=False):
         nonlocal active
+        if pressure_stopping:
+            raise HTTPException(
+                409, "Worker is releasing its native resources after memory pressure"
+            )
+        if pressure_error and not recover:
+            raise HTTPException(503, pressure_error)
         if slot.locked():
             raise HTTPException(409, "Worker is busy")
         async with slot:
@@ -187,10 +257,14 @@ def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfi
     @app.post("/configure")
     async def configure(request: RuntimeProfile):
         async def operation():
+            nonlocal pressure_error
             await app.state.runtime.configure(request)
+            # Also supports a stopped runtime configured with the same profile.
+            await app.state.runtime.start()
+            pressure_error = None
             return {"profile": app.state.runtime.profile.model_dump(mode="json")}
 
-        return await run_in_slot(operation)
+        return await run_in_slot(operation, recover=True)
 
     @app.post("/prefill", response_model=ArtifactManifest)
     async def prefill(request: PrefillRequest):
