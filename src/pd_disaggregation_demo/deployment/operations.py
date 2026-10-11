@@ -275,9 +275,12 @@ with socket.socket() as probe:
             raise SystemExit('Worker port is occupied by an unrelated listener; refusing build')
 # CUDA compilation uses one job and requires at least 1GiB above the host reserve.
 if available < reserve + 1024**3:
-    raise SystemExit('Insufficient RAM for safe single-job CUDA build')
-if shutil.disk_usage(pathlib.Path(sys.argv[1]).parent).free < 20*1024**3 + 8*1024**3:
-    raise SystemExit('Insufficient disk for image, model/state and 20GiB reserve')
+    raise SystemExit(f'Insufficient RAM for safe single-job CUDA build: '
+        f'{{reserve + 1024**3:,}} bytes including reserve required; {{available:,}} available')
+disk_free = shutil.disk_usage(pathlib.Path(sys.argv[1]).parent).free
+if disk_free < 20*1024**3 + 8*1024**3:
+    raise SystemExit(f'Insufficient disk for image, model/state and reserve: '
+        f'{{28*1024**3:,}} bytes required; {{disk_free:,}} free')
 limit = min(6*1024**3, available-reserve)
 profile=json.loads(sys.argv[5])
 values={{'PDD_RELEASE_SHA':sys.argv[2], 'PDD_REMOTE_DATA':sys.argv[3],
@@ -495,11 +498,20 @@ def _bounded_local_build(
 ) -> None:
     _validate_build_timeout(build_timeout)
     resources = capture_resources(settings.work_dir)
-    headroom = resources.ram_available_bytes - max(2 * GiB, settings.remote_ram_reserve_bytes)
+    reserve = max(2 * GiB, settings.remote_ram_reserve_bytes)
+    headroom = resources.ram_available_bytes - reserve
     if headroom < GiB:
-        raise ValueError("Insufficient RAM for a bounded single-job CUDA build")
-    if resources.disk_free_bytes < max(settings.disk_reserve_bytes, 20 * GiB) + 8 * GiB:
-        raise ValueError("Insufficient disk for image build and the 20GiB reserve")
+        raise ValueError(
+            f"Insufficient RAM for a bounded single-job CUDA build: "
+            f"{reserve + GiB:,} bytes including reserve required; "
+            f"{resources.ram_available_bytes:,} available"
+        )
+    disk_required = max(settings.disk_reserve_bytes, 20 * GiB) + 8 * GiB
+    if resources.disk_free_bytes < disk_required:
+        raise ValueError(
+            f"Insufficient disk for image build and reserve: {disk_required:,} bytes required; "
+            f"{resources.disk_free_bytes:,} free"
+        )
     repo = _repo(settings)
     _clean_revision(repo)
     builder = _owned_builder(settings.work_dir)
