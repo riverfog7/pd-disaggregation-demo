@@ -123,7 +123,7 @@ def phases(report: BenchmarkReport):
 
 def transfer(report: BenchmarkReport):
     figure = make_subplots(
-        rows=1, cols=2, subplot_titles=("State size (MiB)", "Transfer rate (MB/s)")
+        rows=1, cols=2, subplot_titles=("State size (MiB)", "Transfer rate (Mbit/s)")
     )
     rows = report.summary
     x = [r["prompt_tokens"] for r in rows]
@@ -145,7 +145,7 @@ def transfer(report: BenchmarkReport):
             x=x,
             y=[r.get("split_transfer_mbps") for r in rows],
             mode="lines+markers",
-            name="Transfer MB/s",
+            name="Transfer Mbit/s",
         ),
         row=1,
         col=2,
@@ -175,7 +175,13 @@ def memory_chart(report: BenchmarkReport):
             name = f"{prefix}.{key}" if prefix else key
             if isinstance(item, dict):
                 yield from flatten(item, name)
-            elif name.endswith("bytes") and isinstance(item, (int, float)):
+            elif (
+                name.endswith("bytes")
+                and isinstance(item, (int, float))
+                and any(
+                    part in key for part in ("ram_", "gpu_", "rss_", "swap_", "metal_", "cgroup_")
+                )
+            ):
                 yield name, item
 
     series = {}
@@ -189,7 +195,7 @@ def memory_chart(report: BenchmarkReport):
             )
         )
     figure.update_layout(
-        title="Measured memory snapshots",
+        title="Memory snapshots and sampled peaks (short transients may be missed)",
         template="plotly_white",
         height=350,
         xaxis_title="Completed request",

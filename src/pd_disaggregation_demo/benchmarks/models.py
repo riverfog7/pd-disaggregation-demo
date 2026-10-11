@@ -60,6 +60,10 @@ class BenchmarkReport(Schema):
             "Repeats alternate local/split and split/local using identical canonical tokens.",
             "Five repeats do not support a reliable tail-latency (p95) estimate.",
             "A supported TTFT win requires the lower 95% paired bootstrap interval to exceed 1.",
+            "Memory shows before/after snapshots and sampled peaks provided by the runtime.",
+            "Sampled peaks can miss short transients; inspect sampling period/count.",
+            "Canonical corpus tokenization is preparation time, outside measured request TTFT.",
+            "Native prefill throughput counts N tokens locally and N-1 remotely before handoff.",
         ]
     )
 

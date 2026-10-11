@@ -1,9 +1,11 @@
 import asyncio
+import contextlib
 import hashlib
+import math
 import platform
 import sys
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import UTC, datetime
 
 from ..models import GenerationRequest, Mode
@@ -20,18 +22,32 @@ CORPUS = (
 
 
 async def exact_tokens(pipeline, size: int) -> list[int]:
-    """Tokenize a fixed text corpus and truncate canonical IDs to the exact requested size."""
-    copies = max(1, size // 50)
-    for _ in range(16):
+    """Prepare exact canonical IDs without unbounded text doubling on tokenizer failure."""
+    if not 2 <= size <= 262144:
+        raise ValueError("Canonical prompt size must be between 2 and 262144")
+    initial = await pipeline.tokenize(CORPUS)
+    if len(initial) >= size:
+        return list(initial[:size])
+    if len(initial) < 2:
+        raise ValueError("Tokenizer returned too few corpus tokens to estimate a safe text size")
+    copies = math.ceil((size - 1) / (len(initial) - 1)) + 1
+    max_chars = min(16 * 1024**2, max(len(CORPUS), size * 64))
+    previous = len(initial)
+    for _ in range(4):
+        if copies * len(CORPUS) > max_chars:
+            raise ValueError("Corpus text would exceed the bounded token preparation budget")
         tokens = await pipeline.tokenize(CORPUS * copies)
         if len(tokens) >= size:
             return list(tokens[:size])
-        copies *= 2
+        if len(tokens) <= previous:
+            raise ValueError("Tokenizer did not produce more tokens for a larger corpus")
+        previous = len(tokens)
+        copies = math.ceil(copies * size / len(tokens)) + 1
     raise ValueError("Tokenizer did not return enough tokens for the deterministic corpus")
 
 
-async def _request(pipeline, ids, mode, output, seed):
-    async for event in pipeline.generate(
+def _request(pipeline, ids, mode, output, seed):
+    return pipeline.generate(
         GenerationRequest(
             token_ids=ids,
             mode=mode,
@@ -40,13 +56,14 @@ async def _request(pipeline, ids, mode, output, seed):
             seed=seed,
             ignore_eos=True,
         )
-    ):
-        yield event
+    )
 
 
-def _check_result(result, size, output):
+def _check_result(result, size, output, mode, model_id):
     if not result.success:
         raise RuntimeError(result.error or "Generation failed")
+    if result.mode != mode or result.model_id != model_id:
+        raise RuntimeError("Runtime result mode/model differs from the requested benchmark")
     if result.prompt_tokens != size or result.generated_tokens != output:
         raise RuntimeError(
             f"Token budget mismatch: prompt={result.prompt_tokens}/{size}, "
@@ -58,6 +75,10 @@ def _check_result(result, size, output):
         result.metrics.cache_n != size - 1 or result.metrics.prompt_n != 1
     ):
         raise RuntimeError("Split boundary mismatch: expected restored N-1 and final prompt_n=1")
+    if result.mode == "local" and (result.metrics.cache_n != 0 or result.metrics.prompt_n != size):
+        raise RuntimeError(
+            "Local boundary mismatch: measured request must evaluate N uncached tokens"
+        )
 
 
 def _is_admission(exc):
@@ -77,6 +98,18 @@ def _is_admission(exc):
 async def run_benchmark(
     pipeline, config: BenchmarkConfig, settings, *, cancel_event: asyncio.Event | None = None
 ) -> AsyncIterator[BenchmarkEvent]:
+    """Keep the runtime exclusively owned through configuration, warmup, and every paired trial."""
+    async with pipeline.session():
+        async with contextlib.aclosing(
+            _run_benchmark(pipeline, config, settings, cancel_event=cancel_event)
+        ) as stream:
+            async for event in stream:
+                yield event
+
+
+async def _run_benchmark(
+    pipeline, config: BenchmarkConfig, settings, *, cancel_event: asyncio.Event | None = None
+) -> AsyncGenerator[BenchmarkEvent]:
     """Stream progress and persist a complete or partial report, without a local fallback.
 
     Native runtime TTFT is authoritative; timings are never reconstructed from stage estimates.
@@ -110,6 +143,7 @@ async def run_benchmark(
             kind="progress", stage="prepare", message="Preparing paired trials", report=report
         )
         for size in config.prompt_sizes:
+            active_request = {"prompt_tokens": size, "stage": "configure"}
             if cancelled():
                 raise asyncio.CancelledError()
             context = max(config.profile.context_size, size + config.output_tokens)
@@ -150,6 +184,7 @@ async def run_benchmark(
                 }
             )
             token_start = time.perf_counter()
+            active_request = {"prompt_tokens": size, "stage": "corpus_tokenize"}
             ids = await exact_tokens(pipeline, size)
             report.environment["prompt_sha256"][str(size)] = hashlib.sha256(
                 ",".join(map(str, ids)).encode()
@@ -172,15 +207,19 @@ async def run_benchmark(
                             report=report,
                         )
                         result = None
-                        async for event in _request(pipeline, ids[:32], mode, 1, config.seed):
-                            if cancelled():
-                                raise asyncio.CancelledError()
-                            if event.kind == "error":
-                                raise RuntimeError(event.text or str(event.data))
-                            if event.kind == "result":
-                                result = event.result
+                        async with contextlib.aclosing(
+                            _request(pipeline, ids[:32], mode, 1, config.seed)
+                        ) as stream:
+                            async for event in stream:
+                                if cancelled():
+                                    raise asyncio.CancelledError()
+                                if event.kind == "error":
+                                    raise RuntimeError(event.text or str(event.data))
+                                if event.kind == "result":
+                                    result = event.result
                         if result is None or not result.success:
                             raise RuntimeError(result.error if result else f"{mode} warmup failed")
+                        _check_result(result, min(size, 32), 1, mode, profile.model_id)
                         report.warmups.append(result)
                 except Exception as exc:
                     if not _is_admission(exc):
@@ -214,30 +253,31 @@ async def run_benchmark(
                         report=report,
                     )
                     result = None
-                    async for event in _request(
-                        pipeline, ids, mode, config.output_tokens, config.seed
-                    ):
-                        if cancelled():
-                            raise asyncio.CancelledError()
-                        if event.kind == "stage":
-                            yield BenchmarkEvent(
-                                kind="stage",
-                                stage=event.stage,
-                                mode=mode,
-                                repeat=repeat,
-                                prompt_tokens=size,
-                                data=event.data,
-                                message=event.stage,
-                                report=report,
-                            )
-                        elif event.kind == "error":
-                            raise RuntimeError(event.text or str(event.data))
-                        elif event.kind == "result":
-                            result = event.result
+                    async with contextlib.aclosing(
+                        _request(pipeline, ids, mode, config.output_tokens, config.seed)
+                    ) as stream:
+                        async for event in stream:
+                            if cancelled():
+                                raise asyncio.CancelledError()
+                            if event.kind == "stage":
+                                yield BenchmarkEvent(
+                                    kind="stage",
+                                    stage=event.stage,
+                                    mode=mode,
+                                    repeat=repeat,
+                                    prompt_tokens=size,
+                                    data=event.data,
+                                    message=event.stage,
+                                    report=report,
+                                )
+                            elif event.kind == "error":
+                                raise RuntimeError(event.text or str(event.data))
+                            elif event.kind == "result":
+                                result = event.result
                     if result is None:
                         raise RuntimeError("Runtime stream ended without a measured result")
                     try:
-                        _check_result(result, size, config.output_tokens)
+                        _check_result(result, size, config.output_tokens, mode, profile.model_id)
                     except Exception as exc:
                         report.failures.append(
                             {

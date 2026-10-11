@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 
 import gradio as gr
@@ -177,6 +178,14 @@ def build_ui(pipeline, settings) -> gr.Blocks:
         return curves(reports), [path for r in reports for path in r.exports.values()]
 
     async def chat(prompt, history, mode, model, cache, context, batch, ubatch, output):
+        async with pipeline.session():
+            async with contextlib.aclosing(
+                chat_request(prompt, history, mode, model, cache, context, batch, ubatch, output)
+            ) as stream:
+                async for update in stream:
+                    yield update
+
+    async def chat_request(prompt, history, mode, model, cache, context, batch, ubatch, output):
         try:
             profile = profile_from(model, cache, context, batch, ubatch)
             await pipeline.configure(profile)
@@ -186,28 +195,28 @@ def build_ui(pipeline, settings) -> gr.Blocks:
             ]
             yield messages, "Preparing request"
             # Conversation is explicitly re-evaluated so it shares the empty-cache runtime policy.
-            conversation = (
-                "\n".join(f"{message['role']}: {message['content']}" for message in messages[:-1])
-                + "\nassistant:"
-            )
-            async for event in pipeline.generate(
-                GenerationRequest(
-                    prompt=conversation,
-                    mode=mode,
-                    max_tokens=int(output),
-                    temperature=0,
+            conversation = await pipeline.format_chat(messages[:-1])
+            async with contextlib.aclosing(
+                pipeline.generate(
+                    GenerationRequest(
+                        prompt=conversation,
+                        mode=mode,
+                        max_tokens=int(output),
+                        temperature=0,
+                    )
                 )
-            ):
-                if event.kind == "token":
-                    messages[-1]["content"] += event.text
-                    yield messages, "Decoding"
-                elif event.kind == "stage":
-                    yield messages, event.stage
-                elif event.kind == "result" and event.result:
-                    messages[-1]["content"] = event.result.text
-                    yield messages, json.dumps(event.result.metrics.model_dump(), indent=2)
-                elif event.kind == "error":
-                    yield messages, f"Failed: {event.text or event.data}"
+            ) as stream:
+                async for event in stream:
+                    if event.kind == "token":
+                        messages[-1]["content"] += event.text
+                        yield messages, "Decoding"
+                    elif event.kind == "stage":
+                        yield messages, event.stage
+                    elif event.kind == "result" and event.result:
+                        messages[-1]["content"] = event.result.text
+                        yield messages, json.dumps(event.result.metrics.model_dump(), indent=2)
+                    elif event.kind == "error":
+                        yield messages, f"Failed: {event.text or event.data}"
         except Exception as exc:
             raise gr.Error(str(exc)) from exc
 
@@ -275,6 +284,11 @@ def build_ui(pipeline, settings) -> gr.Blocks:
             with gr.Tab("State transfer"):
                 transfer_plot = gr.Plot()
             with gr.Tab("Memory and environment"):
+                gr.Markdown(
+                    "Memory shows before/after snapshots and sampled maxima/minima when reported. "
+                    "Inspect the sampling period and sample count in the full report. "
+                    "Sampling may miss short transients; unavailable measurements stay empty."
+                )
                 memory = gr.Dataframe(
                     headers=["Prompt tokens", "Pair", "Mode", "Memory measurements"],
                     interactive=False,

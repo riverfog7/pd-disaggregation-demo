@@ -1,14 +1,17 @@
 import asyncio
+import contextlib
 import csv
 from pathlib import Path
 
 import pytest
 
 from pd_disaggregation_demo.benchmarks import BenchmarkConfig, collect_benchmark, load_report
+from pd_disaggregation_demo.benchmarks.runner import CORPUS, exact_tokens, run_benchmark
 from pd_disaggregation_demo.benchmarks.stats import paired_speedup
 from pd_disaggregation_demo.config.settings import Settings
 from pd_disaggregation_demo.models import (
     GenerationEvent,
+    GenerationRequest,
     GenerationResult,
     RunMetrics,
     RuntimeProfile,
@@ -24,6 +27,22 @@ class FakePipeline:
         self.reject = None
         self.bad_count = False
         self.cancel_signal = None
+        self.session_owner = None
+        self.formatted_messages = None
+
+    @contextlib.asynccontextmanager
+    async def session(self):
+        if self.session_owner is not None:
+            raise RuntimeError("The demo supports one active request")
+        self.session_owner = asyncio.current_task()
+        try:
+            yield
+        finally:
+            self.session_owner = None
+
+    async def format_chat(self, messages):
+        self.formatted_messages = messages
+        return "native template prompt"
 
     async def health(self):
         return {
@@ -257,3 +276,187 @@ async def test_ui_async_callback_outputs_and_gradio6_history(tmp_path):
         updates.append(update)
     assert "completed" in updates[-1][0]
     assert len(updates[-1][9]) == 3
+
+
+async def test_token_preparation_is_bounded_and_exact():
+    class Tokenizer:
+        def __init__(self):
+            self.lengths = []
+
+        async def tokenize(self, text):
+            self.lengths.append(len(text))
+            return [len(word) for word in text.split()]
+
+    tokenizer = Tokenizer()
+    tokens = await exact_tokens(tokenizer, 32768)
+    assert len(tokens) == 32768
+    assert len(tokenizer.lengths) <= 3
+    assert max(tokenizer.lengths) < 32768 * 10
+    with pytest.raises(ValueError, match="between"):
+        await exact_tokens(tokenizer, 10**12)
+
+    class Broken:
+        async def tokenize(self, text):
+            assert len(text) <= len(CORPUS)
+            return []
+
+    with pytest.raises(ValueError, match="too few"):
+        await exact_tokens(Broken(), 32768)
+
+
+async def test_benchmark_keeps_session_while_yielding_progress(tmp_path):
+    pipeline = FakePipeline()
+    stream = run_benchmark(
+        pipeline, BenchmarkConfig(prompt_sizes=[256], repeats=1), settings(tmp_path)
+    )
+    event = await anext(stream)
+    assert event.stage == "prepare"
+    assert pipeline.session_owner is asyncio.current_task()
+
+    async def competing_request():
+        async with pipeline.session():
+            raise AssertionError("Concurrent API/chat entered an active benchmark session")
+
+    with pytest.raises(RuntimeError, match="one active request"):
+        await asyncio.create_task(competing_request())
+    await stream.aclose()
+    assert pipeline.session_owner is None
+    assert pipeline.cancelled
+    assert load_report(next(settings(tmp_path).reports_dir.glob("*.json"))).status == "cancelled"
+
+
+async def test_chat_uses_native_template_in_same_session(tmp_path):
+    pytest.importorskip("gradio")
+    from pd_disaggregation_demo.ui.app import build_ui
+
+    pipeline = FakePipeline()
+    demo = build_ui(pipeline, settings(tmp_path))
+    fn = next(fn for fn in demo.fns.values() if fn.name == "chat")
+    messages = [
+        {"role": "user", "content": [{"type": "text", "text": "prior question"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "prior answer"}]},
+    ]
+    async for _ in fn.fn("new question", messages, "local", "qwen3.5-4b", "f16", 256, 512, 128, 4):
+        assert pipeline.session_owner is asyncio.current_task()
+    assert pipeline.calls[0].prompt == "native template prompt"
+    assert pipeline.formatted_messages == [
+        {"role": "user", "content": "prior question"},
+        {"role": "assistant", "content": "prior answer"},
+        {"role": "user", "content": "new question"},
+    ]
+    assert pipeline.session_owner is None
+
+
+async def test_local_cached_request_is_not_a_valid_benchmark(tmp_path):
+    class UnexpectedCache(FakePipeline):
+        async def generate(self, request):
+            async for event in super().generate(request):
+                if event.result:
+                    event.result.metrics.cache_n = 1
+                yield event
+
+    report = await collect_benchmark(
+        UnexpectedCache(),
+        BenchmarkConfig(
+            prompt_sizes=[256],
+            warmup=False,
+            repeats=1,
+        ),
+        settings(tmp_path),
+    )
+    assert report.status == "failed"
+    assert "Local boundary mismatch" in report.errors[0]
+    assert not report.samples
+    assert any("Sampled peaks can miss short transients" in note for note in report.notes)
+
+
+async def test_real_pipeline_reserves_benchmark_against_api_requests(tmp_path):
+    from pd_disaggregation_demo.pipeline import Pipeline
+
+    pipeline = Pipeline(settings(tmp_path))
+    remote_client = pipeline.remote
+    pipeline.runtime = FakePipeline()
+    pipeline.remote = FakePipeline()
+    stream = run_benchmark(
+        pipeline, BenchmarkConfig(prompt_sizes=[256], repeats=1), settings(tmp_path)
+    )
+    try:
+        assert (await anext(stream)).stage == "prepare"
+
+        async def competing_api_generation():
+            async for _ in pipeline.generate(GenerationRequest(token_ids=[1, 2], max_tokens=1)):
+                raise AssertionError("API generation entered reserved benchmark")
+
+        with pytest.raises(RuntimeError, match="one active request"):
+            await asyncio.create_task(competing_api_generation())
+        with pytest.raises(RuntimeError, match="one active request"):
+            await asyncio.create_task(pipeline.configure(RuntimeProfile(context_size=256)))
+        assert (await anext(stream)).stage == "configure"
+        assert (await anext(stream)).stage == "warmup"
+        assert pipeline._active is asyncio.current_task()
+        assert pipeline._lock.locked()
+    finally:
+        await stream.aclose()
+        await remote_client.close()
+    assert not pipeline._lock.locked()
+    assert pipeline._active is None
+
+
+async def test_memory_sampled_peaks_and_transfer_units(tmp_path):
+    from pd_disaggregation_demo.benchmarks.charts import memory_chart, transfer
+
+    report = await collect_benchmark(
+        FakePipeline(),
+        BenchmarkConfig(
+            prompt_sizes=[256],
+            repeats=1,
+            bootstrap_samples=100,
+        ),
+        settings(tmp_path),
+    )
+    report.samples[0].result.metrics.memory = {
+        "before": {"process_rss_bytes": 1024**3, "disk_free_bytes": 999 * 1024**3},
+        "peak": {"process_rss_max_bytes": 2 * 1024**3, "sample_count": 3, "sample_period_ms": 100},
+    }
+    figure = memory_chart(report)
+    traces = {trace.name: trace for trace in figure.data}
+    assert list(traces["peak.process_rss_max_bytes"].y) == [2]
+    assert not any("disk_free" in name for name in traces)
+    assert not any("gpu_used" in name for name in traces)
+    assert "short transients may be missed" in figure.layout.title.text
+    assert "Transfer rate (Mbit/s)" in [item.text for item in transfer(report).layout.annotations]
+
+
+async def test_cancellation_closes_native_stream_before_releasing_session(tmp_path):
+    class ClosingPipeline(FakePipeline):
+        def __init__(self):
+            super().__init__()
+            self.stream_closed = False
+
+        async def generate(self, request):
+            try:
+                async for event in super().generate(request):
+                    yield event
+            finally:
+                self.stream_closed = True
+
+        async def cancel(self):
+            assert self.stream_closed
+            await super().cancel()
+
+    pipeline = ClosingPipeline()
+    signal = asyncio.Event()
+    pipeline.cancel_signal = signal
+    report = await collect_benchmark(
+        pipeline,
+        BenchmarkConfig(
+            prompt_sizes=[256],
+            repeats=1,
+            warmup=False,
+        ),
+        settings(tmp_path),
+        cancel_event=signal,
+    )
+    assert report.status == "cancelled"
+    assert pipeline.stream_closed
+    assert pipeline.session_owner is None
