@@ -128,6 +128,10 @@ def create_app(
     async def configure(value: RuntimeProfile):
         try:
             await pipeline.configure(value)
+        except asyncio.CancelledError:
+            raise HTTPException(
+                409, "Configuration cancelled; the previous profile is retained"
+            ) from None
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(409, str(exc)) from exc
         return await health()
@@ -143,6 +147,8 @@ def create_app(
         try:
             artifact = await pipeline.prefill(request)
             return artifact.manifest
+        except asyncio.CancelledError:
+            raise HTTPException(409, "Prefill request cancelled") from None
         except (ValueError, RuntimeError) as exc:
             raise HTTPException(409, str(exc)) from exc
 

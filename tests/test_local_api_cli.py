@@ -1,3 +1,4 @@
+import asyncio
 import json
 from contextlib import asynccontextmanager
 
@@ -95,6 +96,28 @@ def test_api_rejects_wrong_models_and_missing_artifacts(tmp_path):
         )
         assert client.get("/artifacts/bad/manifest").status_code == 400
         assert client.get(f"/artifacts/{'a' * 32}/state").status_code == 404
+
+
+def test_nonstream_cancellation_is_actionable_without_internal_server_error(tmp_path):
+    class CancelledPipeline(FakePipeline):
+        async def configure(self, profile):
+            raise asyncio.CancelledError()
+
+        async def prefill(self, request):
+            raise asyncio.CancelledError()
+
+    pipeline = CancelledPipeline()
+    with TestClient(
+        create_app(Settings(work_dir=tmp_path), pipeline=pipeline, with_ui=False)
+    ) as client:
+        for endpoint, payload in (
+            ("/configure", pipeline.profile.model_dump()),
+            ("/prefill", {"prompt": "Test cancellation"}),
+        ):
+            response = client.post(endpoint, json=payload)
+            assert response.status_code == 409
+            assert "cancelled" in response.json()["detail"]
+        assert client.get("/health").json()["status"] == "ready"
 
 
 def test_cli_catalog_and_launch_help():
