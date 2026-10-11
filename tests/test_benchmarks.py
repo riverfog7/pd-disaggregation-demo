@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import csv
+import json
 import time
 from pathlib import Path
 
@@ -513,3 +514,72 @@ async def test_slow_consumer_cannot_pause_timed_native_stages(tmp_path):
     assert stages[1]["elapsed_ms"] == 2
     assert stages[1]["data"] == {"source": "actual fake stage"}
     assert any("Dashboard phase updates occur after each sample" in note for note in report.notes)
+
+
+async def test_csv_keeps_effective_settings_builds_and_failure_context(tmp_path):
+    from pd_disaggregation_demo.benchmarks import save_report
+    from pd_disaggregation_demo.benchmarks.models import SkippedPoint
+
+    report = await collect_benchmark(
+        FakePipeline(),
+        BenchmarkConfig(
+            prompt_sizes=[256],
+            repeats=1,
+            bootstrap_samples=100,
+        ),
+        settings(tmp_path),
+    )
+    effective = {
+        "local": {"n_batch": 256, "n_ubatch": 64, "cache_type_k": "f16"},
+        "remote": {"n_batch": 1024, "gpu_layers": 33},
+    }
+    report.samples[1].result.effective_settings = effective
+    report.status = "failed"
+    report.errors = ["worker disconnected after completed pair"]
+    report.skipped = [SkippedPoint(prompt_tokens=32768, reason="context memory admission refused")]
+    report.environment.update(
+        git_revision="local-recorded-sha",
+        engine_revision="engine-pinned-sha",
+        health_before={"remote": {"git_revision": "remote-recorded-sha"}},
+    )
+    save_report(report, settings(tmp_path).reports_dir)
+    with Path(report.exports["csv"]).open() as stream:
+        rows = list(csv.DictReader(stream))
+    assert len(rows) == len(report.samples) == 2
+    assert json.loads(rows[1]["effective_settings"]) == effective
+    assert json.loads(rows[0]["effective_settings"]) == {}
+    assert all(row["local_git_revision"] == "local-recorded-sha" for row in rows)
+    assert all(row["engine_revision"] == "engine-pinned-sha" for row in rows)
+    assert all(row["remote_git_revision"] == "remote-recorded-sha" for row in rows)
+    assert all(row["status"] == "failed" for row in rows)
+    assert json.loads(rows[1]["benchmark_errors"]) == report.errors
+    assert json.loads(rows[1]["benchmark_skipped"]) == [
+        point.model_dump() for point in report.skipped
+    ]
+    assert json.loads(rows[1]["benchmark_config"]) == report.config.model_dump(mode="json")
+    assert float(rows[1]["ttft_ms"]) == report.samples[1].result.metrics.ttft_ms
+
+    report.environment["health_before"] = {"remote": {"git_revision": "unknown"}}
+    report.environment["health_after"] = {"remote": {"git_revision": "remote-after-sha"}}
+    save_report(report, settings(tmp_path).reports_dir)
+    with Path(report.exports["csv"]).open() as stream:
+        assert next(csv.DictReader(stream))["remote_git_revision"] == "remote-after-sha"
+
+    report.environment.clear()
+    save_report(report, settings(tmp_path).reports_dir)
+    with Path(report.exports["csv"]).open() as stream:
+        row = next(csv.DictReader(stream))
+    assert (
+        row["local_git_revision"]
+        == row["engine_revision"]
+        == row["remote_git_revision"]
+        == "unknown"
+    )
+
+    report.samples.clear()
+    save_report(report, settings(tmp_path).reports_dir)
+    with Path(report.exports["csv"]).open() as stream:
+        reader = csv.DictReader(stream)
+        assert "effective_settings" in reader.fieldnames
+        assert "remote_git_revision" in reader.fieldnames
+        assert not list(reader)

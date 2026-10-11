@@ -4,7 +4,19 @@ import json
 import os
 from pathlib import Path
 
+from ..models import RunMetrics
 from .models import BenchmarkReport
+
+
+def _remote_git_revision(report: BenchmarkReport) -> str:
+    """Use recorded initial worker metadata, falling back to final metadata if unavailable."""
+    for key in ("health_before", "health_after"):
+        health = report.environment.get(key)
+        remote = health.get("remote") if isinstance(health, dict) else None
+        revision = remote.get("git_revision") if isinstance(remote, dict) else None
+        if isinstance(revision, str) and revision not in ("", "unknown"):
+            return revision
+    return "unknown"
 
 
 def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
@@ -15,12 +27,23 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
         ext: str(base.with_suffix(f".{ext}").resolve()) for ext in ("json", "csv", "html")
     }
     csv_path = Path(report.exports["csv"])
+    metadata = {
+        "benchmark_id": report.run_id,
+        "status": report.status,
+        "local_git_revision": report.environment.get("git_revision") or "unknown",
+        "engine_revision": report.environment.get("engine_revision") or "unknown",
+        "remote_git_revision": _remote_git_revision(report),
+        "benchmark_errors": json.dumps(report.errors, ensure_ascii=False),
+        "benchmark_skipped": json.dumps(
+            [point.model_dump() for point in report.skipped], ensure_ascii=False
+        ),
+        "benchmark_config": report.config.model_dump_json(),
+    }
     rows = []
     for sample in report.samples:
         result = sample.result
         row = {
-            "benchmark_id": report.run_id,
-            "status": report.status,
+            **metadata,
             "prompt_tokens": sample.prompt_tokens,
             "repeat": sample.repeat + 1,
             "order": sample.order + 1,
@@ -36,10 +59,28 @@ def save_report(report: BenchmarkReport, directory: Path) -> dict[str, str]:
         for name in ("fingerprint", "local_profile", "remote_profile"):
             item = getattr(result, name)
             row[name] = item.model_dump_json() if item else ""
+        row["effective_settings"] = json.dumps(result.effective_settings, ensure_ascii=False)
         rows.append(row)
     with csv_path.with_suffix(".csv.tmp").open("w", newline="", encoding="utf-8") as stream:
         fieldnames = (
-            list(rows[0]) if rows else ["benchmark_id", "status", "prompt_tokens", "repeat", "mode"]
+            list(rows[0])
+            if rows
+            else list(metadata)
+            + [
+                "prompt_tokens",
+                "repeat",
+                "order",
+                "mode",
+                "model_id",
+                "generated_tokens",
+                "success",
+                "error",
+                *RunMetrics.model_fields,
+                "fingerprint",
+                "local_profile",
+                "remote_profile",
+                "effective_settings",
+            ]
         )
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
