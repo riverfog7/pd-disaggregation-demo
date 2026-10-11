@@ -1,0 +1,38 @@
+name: pd-disaggregation-demo
+services:
+  worker:
+    image: pd-disaggregation-demo:${PDD_RELEASE_SHA:-dev}
+    build:
+      context: .
+      args:
+        GIT_REVISION: ${PDD_RELEASE_SHA:-unknown}
+        ENGINE_REVISION: 23b0202a189c44a54625aadcb37a946dd1d6278d
+        BUILD_JOBS: ${PDD_BUILD_JOBS:-1}
+    ports:
+      - '127.0.0.1:${PDD_WORKER_PORT:-8090}:8090'
+    devices:
+      - nvidia.com/gpu=all
+    volumes:
+      - ${PDD_REMOTE_DATA:-./.pd-worker}/cache:/data/cache
+      - ${PDD_REMOTE_DATA:-./.pd-worker}/work:/data/work
+    environment:
+      PDD_GIT_REVISION: ${PDD_RELEASE_SHA:-unknown}
+      PDD_WORKER_PROFILE: '${PDD_WORKER_PROFILE:-}'
+      PDD_MODEL_ID: ${PDD_MODEL_ID:-qwen3.5-4b}
+      PDD_CONTEXT_SIZE: ${PDD_CONTEXT_SIZE:-8192}
+      PDD_CACHE_TYPE: ${PDD_CACHE_TYPE:-f16}
+      PDD_GPU_RESERVE_BYTES: 1073741824
+      PDD_REMOTE_RAM_RESERVE_BYTES: 2147483648
+      PDD_DISK_RESERVE_BYTES: 21474836480
+    # Deployment sets this from measured headroom, refusing insufficient capacity.
+    mem_limit: ${PDD_WORKER_MEMORY:-4g}
+    memswap_limit: ${PDD_WORKER_MEMORY:-4g}
+    cpus: '${PDD_WORKER_CPUS:-2}'
+    pids_limit: 256
+    init: true
+    restart: 'no'
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

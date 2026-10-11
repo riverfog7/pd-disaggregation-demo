@@ -1,0 +1,15 @@
+.git
+.venv
+.pd-demo
+.pd-worker
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.ipynb_checkpoints
+*.ipynb
+tests
+docs
+.env
+*.gguf
+*.bin
