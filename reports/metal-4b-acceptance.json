@@ -1,0 +1,602 @@
+{
+  "schema_version": 1,
+  "created_at": "2026-10-11T07:06:32.578581+00:00",
+  "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+  "model_id": "qwen3.5-4b",
+  "scope": "specific deterministic native runs; numerical comparisons are observations",
+  "prompt": "Write one short sentence explaining why the sky appears blue.",
+  "max_tokens": 24,
+  "local": [
+    {
+      "cache_type": "f16",
+      "startup_ms": 2619.4092910009203,
+      "canonical_token_ids": [
+        248045,
+        846,
+        198,
+        7734,
+        799,
+        2716,
+        11316,
+        24228,
+        3069,
+        279,
+        12515,
+        7701,
+        6105,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ],
+      "prompt_tokens": 21,
+      "artifact": {
+        "source_backend": "metal",
+        "prefix_tokens": 20,
+        "state_bytes": 53347704,
+        "state_sha256": "001a9b5b80710f655aee8f0bb934c8988621f269280a16a9a7418572bf943394",
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "f16",
+          "cache_type_v": "f16",
+          "context_size": 1024,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "timings": {
+          "prefill_ms": 94.48237498872913,
+          "export_ms": 73.89954100653995,
+          "native_prefill_ms": 93.105,
+          "prefill_tps": 214.811234627571,
+          "native_save_ms": 10.586,
+          "peak_process_rss_bytes": 3084943360.0,
+          "memory_sample_count": 3.0,
+          "memory_sample_period_ms": 100.0
+        }
+      },
+      "direct": {
+        "text": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: Write one short sentence.",
+        "token_ids": [
+          90700,
+          8340,
+          25,
+          271,
+          16,
+          13,
+          220,
+          2972,
+          2014,
+          53983,
+          279,
+          5952,
+          64700,
+          198,
+          262,
+          348,
+          256,
+          5261,
+          25,
+          9357,
+          799,
+          2716,
+          11316,
+          13
+        ],
+        "metrics": {
+          "ttft_ms": 290.2827500074636,
+          "prefill_ms": 240.916,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 537.625,
+          "total_ms": 955.2149590017507,
+          "prefill_tps": 87.16731142804962,
+          "decode_tps": 42.780748663101605,
+          "client_decode_tps": 42.771105802726666,
+          "state_bytes": 0,
+          "cache_n": 0,
+          "prompt_n": 21,
+          "memory_peak": {
+            "sample_period_ms": 100,
+            "sample_count": 8,
+            "process_rss_max_bytes": 3083927552,
+            "native_process_rss_max_bytes": 3011264512,
+            "swap_used_max_bytes": 1703936,
+            "ram_available_min_bytes": 19127500800
+          }
+        }
+      },
+      "same_artifact_restored_twice": [
+        {
+          "text": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: Write one short sentence.",
+          "token_ids": [
+            90700,
+            8340,
+            25,
+            271,
+            16,
+            13,
+            220,
+            2972,
+            2014,
+            53983,
+            279,
+            5952,
+            64700,
+            198,
+            262,
+            348,
+            256,
+            5261,
+            25,
+            9357,
+            799,
+            2716,
+            11316,
+            13
+          ],
+          "metrics": {
+            "ttft_ms": 105.22366598888766,
+            "prefill_ms": 94.48237498872913,
+            "export_ms": 73.89954100653995,
+            "transfer_ms": 0.0,
+            "restore_ms": 18.85062499786727,
+            "final_prompt_ms": 19.042,
+            "decode_ms": 678.923,
+            "total_ms": 879.591207994963,
+            "prefill_tps": 214.811234627571,
+            "decode_tps": 33.877184894310545,
+            "client_decode_tps": 33.87035018949536,
+            "state_bytes": 53347704,
+            "cache_n": 20,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3085238272,
+              "native_process_rss_max_bytes": 3012263936,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 19127500800
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "text": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: Write one short sentence.",
+          "token_ids": [
+            90700,
+            8340,
+            25,
+            271,
+            16,
+            13,
+            220,
+            2972,
+            2014,
+            53983,
+            279,
+            5952,
+            64700,
+            198,
+            262,
+            348,
+            256,
+            5261,
+            25,
+            9357,
+            799,
+            2716,
+            11316,
+            13
+          ],
+          "metrics": {
+            "ttft_ms": 113.54312500043306,
+            "prefill_ms": 94.48237498872913,
+            "export_ms": 73.89954100653995,
+            "transfer_ms": 0.0,
+            "restore_ms": 18.46358300826978,
+            "final_prompt_ms": 22.955,
+            "decode_ms": 1079.797,
+            "total_ms": 1338.1300409964751,
+            "prefill_tps": 214.811234627571,
+            "decode_tps": 21.300299963789488,
+            "client_decode_tps": 20.485067097305652,
+            "state_bytes": 53347704,
+            "cache_n": 20,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3085271040,
+              "native_process_rss_max_bytes": 3012296704,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 18735988736
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "rejections": [
+        {
+          "case": "corrupt",
+          "rejected": true,
+          "reason": "Artifact state SHA256 mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "truncated",
+          "rejected": true,
+          "reason": "Artifact state size mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "expired",
+          "rejected": true,
+          "reason": "Prefill artifact has expired",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "incompatible",
+          "rejected": true,
+          "reason": "Artifact fingerprint does not match decode runtime",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ]
+    },
+    {
+      "cache_type": "q8_0",
+      "startup_ms": 2342.975457999273,
+      "canonical_token_ids": [
+        248045,
+        846,
+        198,
+        7734,
+        799,
+        2716,
+        11316,
+        24228,
+        3069,
+        279,
+        12515,
+        7701,
+        6105,
+        13,
+        248046,
+        198,
+        248045,
+        74455,
+        198,
+        248068,
+        198
+      ],
+      "prompt_tokens": 21,
+      "artifact": {
+        "source_backend": "metal",
+        "prefix_tokens": 20,
+        "state_bytes": 53040504,
+        "state_sha256": "069fa9fb43a4c9513bc1a889a45a43497de22cb43e76ffe9cc539a27ed9cf1c3",
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 1024,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "timings": {
+          "prefill_ms": 94.52762501314282,
+          "export_ms": 71.81916700210422,
+          "native_prefill_ms": 93.297,
+          "prefill_tps": 214.36916513928637,
+          "native_save_ms": 10.932,
+          "peak_process_rss_bytes": 3072540672.0,
+          "memory_sample_count": 3.0,
+          "memory_sample_period_ms": 100.0
+        }
+      },
+      "direct": {
+        "text": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: Write one short sentence.",
+        "token_ids": [
+          90700,
+          8340,
+          25,
+          271,
+          16,
+          13,
+          220,
+          2972,
+          2014,
+          53983,
+          279,
+          5952,
+          64700,
+          198,
+          262,
+          348,
+          256,
+          5261,
+          25,
+          9357,
+          799,
+          2716,
+          11316,
+          13
+        ],
+        "metrics": {
+          "ttft_ms": 106.48920900712255,
+          "prefill_ms": 65.158,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 463.205,
+          "total_ms": 731.06191700208,
+          "prefill_tps": 322.2935019491083,
+          "decode_tps": 49.65404086743451,
+          "client_decode_tps": 49.63613208290194,
+          "state_bytes": 0,
+          "cache_n": 0,
+          "prompt_n": 21,
+          "memory_peak": {
+            "sample_period_ms": 100,
+            "sample_count": 7,
+            "process_rss_max_bytes": 3071950848,
+            "native_process_rss_max_bytes": 2998222848,
+            "swap_used_max_bytes": 1703936,
+            "ram_available_min_bytes": 20027244544
+          }
+        }
+      },
+      "same_artifact_restored_twice": [
+        {
+          "text": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: Write one short sentence.",
+          "token_ids": [
+            90700,
+            8340,
+            25,
+            271,
+            16,
+            13,
+            220,
+            2972,
+            2014,
+            53983,
+            279,
+            5952,
+            64700,
+            198,
+            262,
+            348,
+            256,
+            5261,
+            25,
+            9357,
+            799,
+            2716,
+            11316,
+            13
+          ],
+          "metrics": {
+            "ttft_ms": 104.28758300258778,
+            "prefill_ms": 94.52762501314282,
+            "export_ms": 71.81916700210422,
+            "transfer_ms": 0.0,
+            "restore_ms": 17.26958400104195,
+            "final_prompt_ms": 19.672,
+            "decode_ms": 582.244,
+            "total_ms": 796.0796249972191,
+            "prefill_tps": 214.36916513928637,
+            "decode_tps": 39.502339225479346,
+            "client_decode_tps": 38.6440745876163,
+            "state_bytes": 53040504,
+            "cache_n": 20,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 7,
+              "process_rss_max_bytes": 3072622592,
+              "native_process_rss_max_bytes": 2998796288,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 19432439808
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "text": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Task: Write one short sentence.",
+          "token_ids": [
+            90700,
+            8340,
+            25,
+            271,
+            16,
+            13,
+            220,
+            2972,
+            2014,
+            53983,
+            279,
+            5952,
+            64700,
+            198,
+            262,
+            348,
+            256,
+            5261,
+            25,
+            9357,
+            799,
+            2716,
+            11316,
+            13
+          ],
+          "metrics": {
+            "ttft_ms": 106.8318339966936,
+            "prefill_ms": 94.52762501314282,
+            "export_ms": 71.81916700210422,
+            "transfer_ms": 0.0,
+            "restore_ms": 14.767083994229324,
+            "final_prompt_ms": 22.225,
+            "decode_ms": 711.133,
+            "total_ms": 855.8908339909976,
+            "prefill_tps": 214.36916513928637,
+            "decode_tps": 32.3427544495896,
+            "client_decode_tps": 32.34541341835387,
+            "state_bytes": 53040504,
+            "cache_n": 20,
+            "prompt_n": 1,
+            "memory_peak": {
+              "sample_period_ms": 100,
+              "sample_count": 8,
+              "process_rss_max_bytes": 3072688128,
+              "native_process_rss_max_bytes": 2998861824,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 19432439808
+            }
+          },
+          "comparison_with_direct": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ],
+      "rejections": [
+        {
+          "case": "corrupt",
+          "rejected": true,
+          "reason": "Artifact state SHA256 mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "truncated",
+          "rejected": true,
+          "reason": "Artifact state size mismatch",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "expired",
+          "rejected": true,
+          "reason": "Prefill artifact has expired",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        },
+        {
+          "case": "incompatible",
+          "rejected": true,
+          "reason": "Artifact fingerprint does not match decode runtime",
+          "runtime_usable_afterward": true,
+          "restored_cache_n": 20,
+          "restored_prompt_n": 1,
+          "comparison": {
+            "same_text": true,
+            "same_tokens": true,
+            "first_token_difference": null,
+            "expected_tokens": 24,
+            "actual_tokens": 24
+          }
+        }
+      ]
+    }
+  ],
+  "cuda_to_metal": [],
+  "cross_cache_comparison": {
+    "same_text": true,
+    "same_tokens": true,
+    "first_token_difference": null,
+    "expected_tokens": 24,
+    "actual_tokens": 24
+  },
+  "success": true
+}

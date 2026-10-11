@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "created_at": "2026-10-11T06:49:05.970059+00:00",
+  "created_at": "2026-10-11T07:02:18.660793+00:00",
   "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
   "model_id": "qwen3.5-0.8b",
   "scope": "specific deterministic native runs; numerical comparisons are observations",
@@ -9,7 +9,7 @@
   "local": [
     {
       "cache_type": "f16",
-      "startup_ms": 6953.390416994807,
+      "startup_ms": 1012.801250006305,
       "canonical_token_ids": [
         248045,
         846,
@@ -50,12 +50,12 @@
           "state_format_version": 1
         },
         "timings": {
-          "prefill_ms": 24.08504100458231,
-          "export_ms": 33.63870800239965,
-          "native_prefill_ms": 22.902,
-          "prefill_tps": 873.2861758798357,
-          "native_save_ms": 3.008,
-          "peak_process_rss_bytes": 820494336.0,
+          "prefill_ms": 17.56104100786615,
+          "export_ms": 36.32225000183098,
+          "native_prefill_ms": 16.34,
+          "prefill_tps": 1223.9902080783354,
+          "native_save_ms": 4.802,
+          "peak_process_rss_bytes": 813154304.0,
           "memory_sample_count": 2.0,
           "memory_sample_period_ms": 100.0
         }
@@ -89,27 +89,27 @@
           13
         ],
         "metrics": {
-          "ttft_ms": 446.26287500432227,
-          "prefill_ms": 406.745,
+          "ttft_ms": 78.4083750040736,
+          "prefill_ms": 35.877,
           "export_ms": 0.0,
           "transfer_ms": 0.0,
           "restore_ms": 0.0,
           "final_prompt_ms": 0.0,
-          "decode_ms": 195.56,
-          "total_ms": 678.5345829994185,
-          "prefill_tps": 51.62939925506152,
-          "decode_tps": 117.61096338719574,
-          "client_decode_tps": 117.68370330797465,
+          "decode_ms": 121.389,
+          "total_ms": 236.48599999432918,
+          "prefill_tps": 585.333221841291,
+          "decode_tps": 189.47351077939516,
+          "client_decode_tps": 189.68524620837985,
           "state_bytes": 0,
           "cache_n": 0,
           "prompt_n": 21,
           "memory_peak": {
             "sample_period_ms": 100,
-            "sample_count": 7,
-            "process_rss_max_bytes": 820379648,
-            "native_process_rss_max_bytes": 753680384,
+            "sample_count": 3,
+            "process_rss_max_bytes": 812990464,
+            "native_process_rss_max_bytes": 741654528,
             "swap_used_max_bytes": 1703936,
-            "ram_available_min_bytes": 21120712704
+            "ram_available_min_bytes": 20993343488
           }
         }
       },
@@ -143,27 +143,27 @@
             13
           ],
           "metrics": {
-            "ttft_ms": 64.62474999716505,
-            "prefill_ms": 24.08504100458231,
-            "export_ms": 33.63870800239965,
+            "ttft_ms": 64.58504199690651,
+            "prefill_ms": 17.56104100786615,
+            "export_ms": 36.32225000183098,
             "transfer_ms": 0.0,
-            "restore_ms": 8.20075000228826,
-            "final_prompt_ms": 7.922,
-            "decode_ms": 142.204,
-            "total_ms": 244.47029099974316,
-            "prefill_tps": 873.2861758798357,
-            "decode_tps": 161.73947286996145,
-            "client_decode_tps": 161.8224973018763,
+            "restore_ms": 7.475332997273654,
+            "final_prompt_ms": 6.695,
+            "decode_ms": 128.463,
+            "total_ms": 231.3916249986505,
+            "prefill_tps": 1223.9902080783354,
+            "decode_tps": 179.03987918700327,
+            "client_decode_tps": 179.16359903926627,
             "state_bytes": 20448440,
             "cache_n": 20,
             "prompt_n": 1,
             "memory_peak": {
               "sample_period_ms": 100,
               "sample_count": 3,
-              "process_rss_max_bytes": 820674560,
-              "native_process_rss_max_bytes": 753778688,
+              "process_rss_max_bytes": 813449216,
+              "native_process_rss_max_bytes": 741834752,
               "swap_used_max_bytes": 1703936,
-              "ram_available_min_bytes": 21150547968
+              "ram_available_min_bytes": 20993343488
             }
           },
           "comparison_with_direct": {
@@ -203,27 +203,27 @@
             13
           ],
           "metrics": {
-            "ttft_ms": 63.54129199462477,
-            "prefill_ms": 24.08504100458231,
-            "export_ms": 33.63870800239965,
+            "ttft_ms": 66.37087500712369,
+            "prefill_ms": 17.56104100786615,
+            "export_ms": 36.32225000183098,
             "transfer_ms": 0.0,
-            "restore_ms": 6.905999995069578,
-            "final_prompt_ms": 7.094,
-            "decode_ms": 146.392,
-            "total_ms": 247.68841700279154,
-            "prefill_tps": 873.2861758798357,
-            "decode_tps": 157.11241051423576,
-            "client_decode_tps": 157.17853110159663,
+            "restore_ms": 8.3663749974221,
+            "final_prompt_ms": 6.838,
+            "decode_ms": 161.801,
+            "total_ms": 265.9623750078026,
+            "prefill_tps": 1223.9902080783354,
+            "decode_tps": 142.14992490775705,
+            "client_decode_tps": 142.15567260732038,
             "state_bytes": 20448440,
             "cache_n": 20,
             "prompt_n": 1,
             "memory_peak": {
               "sample_period_ms": 100,
               "sample_count": 3,
-              "process_rss_max_bytes": 820723712,
-              "native_process_rss_max_bytes": 753827840,
+              "process_rss_max_bytes": 813580288,
+              "native_process_rss_max_bytes": 741883904,
               "swap_used_max_bytes": 1703936,
-              "ram_available_min_bytes": 21150547968
+              "ram_available_min_bytes": 20993343488
             }
           },
           "comparison_with_direct": {
@@ -300,7 +300,7 @@
     },
     {
       "cache_type": "q8_0",
-      "startup_ms": 1134.625499995309,
+      "startup_ms": 925.0085829989985,
       "canonical_token_ids": [
         248045,
         846,
@@ -341,12 +341,12 @@
           "state_format_version": 1
         },
         "timings": {
-          "prefill_ms": 23.864834001869895,
-          "export_ms": 35.45770898927003,
-          "native_prefill_ms": 22.658,
-          "prefill_tps": 882.6904404625298,
-          "native_save_ms": 3.216,
-          "peak_process_rss_bytes": 805732352.0,
+          "prefill_ms": 20.904916993458755,
+          "export_ms": 34.825999988242984,
+          "native_prefill_ms": 19.459,
+          "prefill_tps": 1027.8020453260701,
+          "native_save_ms": 3.774,
+          "peak_process_rss_bytes": 811646976.0,
           "memory_sample_count": 2.0,
           "memory_sample_period_ms": 100.0
         }
@@ -380,27 +380,27 @@
           13
         ],
         "metrics": {
-          "ttft_ms": 153.68137499899603,
-          "prefill_ms": 100.268,
+          "ttft_ms": 81.40170900151134,
+          "prefill_ms": 40.659,
           "export_ms": 0.0,
           "transfer_ms": 0.0,
           "restore_ms": 0.0,
           "final_prompt_ms": 0.0,
-          "decode_ms": 155.081,
-          "total_ms": 333.7565419933526,
-          "prefill_tps": 209.4387042725496,
-          "decode_tps": 148.30959305137318,
-          "client_decode_tps": 161.57930932442483,
+          "decode_ms": 173.276,
+          "total_ms": 314.03854199743364,
+          "prefill_tps": 516.4908138419538,
+          "decode_tps": 132.73621274729334,
+          "client_decode_tps": 132.7497477413067,
           "state_bytes": 0,
           "cache_n": 0,
           "prompt_n": 21,
           "memory_peak": {
             "sample_period_ms": 100,
             "sample_count": 4,
-            "process_rss_max_bytes": 805617664,
-            "native_process_rss_max_bytes": 737935360,
+            "process_rss_max_bytes": 811499520,
+            "native_process_rss_max_bytes": 738951168,
             "swap_used_max_bytes": 1703936,
-            "ram_available_min_bytes": 21530509312
+            "ram_available_min_bytes": 21245034496
           }
         }
       },
@@ -434,27 +434,27 @@
             13
           ],
           "metrics": {
-            "ttft_ms": 66.47762499051169,
-            "prefill_ms": 23.864834001869895,
-            "export_ms": 35.45770898927003,
+            "ttft_ms": 67.92391699855216,
+            "prefill_ms": 20.904916993458755,
+            "export_ms": 34.825999988242984,
             "transfer_ms": 0.0,
-            "restore_ms": 7.486375005100854,
-            "final_prompt_ms": 8.42,
-            "decode_ms": 159.857,
-            "total_ms": 263.4292079892475,
-            "prefill_tps": 882.6904404625298,
-            "decode_tps": 143.87859149114522,
-            "client_decode_tps": 143.93858202564664,
+            "restore_ms": 7.568375003756955,
+            "final_prompt_ms": 7.271,
+            "decode_ms": 127.568,
+            "total_ms": 232.84720799711067,
+            "prefill_tps": 1027.8020453260701,
+            "decode_tps": 180.29599899661358,
+            "client_decode_tps": 180.37264691140027,
             "state_bytes": 20333240,
             "cache_n": 20,
             "prompt_n": 1,
             "memory_peak": {
               "sample_period_ms": 100,
               "sample_count": 3,
-              "process_rss_max_bytes": 805765120,
-              "native_process_rss_max_bytes": 738066432,
+              "process_rss_max_bytes": 811728896,
+              "native_process_rss_max_bytes": 739115008,
               "swap_used_max_bytes": 1703936,
-              "ram_available_min_bytes": 21530509312
+              "ram_available_min_bytes": 21245034496
             }
           },
           "comparison_with_direct": {
@@ -494,27 +494,27 @@
             13
           ],
           "metrics": {
-            "ttft_ms": 65.28120899747591,
-            "prefill_ms": 23.864834001869895,
-            "export_ms": 35.45770898927003,
+            "ttft_ms": 62.86320899380371,
+            "prefill_ms": 20.904916993458755,
+            "export_ms": 34.825999988242984,
             "transfer_ms": 0.0,
-            "restore_ms": 7.997333988896571,
-            "final_prompt_ms": 7.437,
-            "decode_ms": 152.554,
-            "total_ms": 254.98612500086892,
-            "prefill_tps": 882.6904404625298,
-            "decode_tps": 150.76628603641987,
-            "client_decode_tps": 150.8075580789541,
+            "restore_ms": 7.95045800623484,
+            "final_prompt_ms": 5.666,
+            "decode_ms": 131.374,
+            "total_ms": 231.23725000186823,
+            "prefill_tps": 1027.8020453260701,
+            "decode_tps": 175.07269322697033,
+            "client_decode_tps": 175.1296269442609,
             "state_bytes": 20333240,
             "cache_n": 20,
             "prompt_n": 1,
             "memory_peak": {
               "sample_period_ms": 100,
               "sample_count": 3,
-              "process_rss_max_bytes": 805814272,
-              "native_process_rss_max_bytes": 738115584,
+              "process_rss_max_bytes": 811859968,
+              "native_process_rss_max_bytes": 739164160,
               "swap_used_max_bytes": 1703936,
-              "ram_available_min_bytes": 21530509312
+              "ram_available_min_bytes": 21245034496
             }
           },
           "comparison_with_direct": {
