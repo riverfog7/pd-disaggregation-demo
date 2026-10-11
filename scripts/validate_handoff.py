@@ -83,6 +83,13 @@ def comparison(expected: dict, actual: dict) -> dict:
     }
 
 
+def require_same_continuation(expected: dict, actual: dict, label: str) -> dict:
+    result = comparison(expected, actual)
+    if not result["same_text"] or not result["same_tokens"]:
+        raise AssertionError(f"{label}: deterministic continuation differs ({result})")
+    return result
+
+
 def artifact_summary(artifact: PrefillArtifact) -> dict:
     m = artifact.manifest
     return {
@@ -100,7 +107,7 @@ async def rejection_checks(runtime, artifact, request, expected):
     negative_dir = artifact.state_path.parent / "negative-tests"
     negative_dir.mkdir()
     try:
-        for kind in ("corrupt", "truncated", "expired", "incompatible"):
+        for kind in ("corrupt", "truncated", "missing", "expired", "incompatible"):
             state = negative_dir / f"{kind}.bin"
             await asyncio.to_thread(shutil.copyfile, artifact.state_path, state)
             manifest = artifact.manifest.model_copy(deep=True)
@@ -112,6 +119,8 @@ async def rejection_checks(runtime, artifact, request, expected):
             elif kind == "truncated":
                 with state.open("r+b") as target:
                     target.truncate(manifest.state_bytes - 1)
+            elif kind == "missing":
+                state.unlink()
             elif kind == "expired":
                 manifest.expires_at = datetime.now(UTC) - timedelta(seconds=1)
             else:
@@ -129,8 +138,14 @@ async def rejection_checks(runtime, artifact, request, expected):
             if rejection is None:
                 raise AssertionError(f"Native decode accepted {kind} artifact")
             recovered = await collect(runtime.decode(artifact, request))
-            if recovered["metrics"]["cache_n"] != manifest.prefix_tokens:
+            if (
+                recovered["metrics"]["cache_n"] != artifact.manifest.prefix_tokens
+                or recovered["metrics"]["prompt_n"] != 1
+            ):
                 raise AssertionError("Runtime did not remain usable after artifact rejection")
+            recovered_comparison = require_same_continuation(
+                expected, recovered, f"Recovery after {kind} artifact rejection"
+            )
             outcomes.append(
                 {
                     "case": kind,
@@ -139,7 +154,7 @@ async def rejection_checks(runtime, artifact, request, expected):
                     "runtime_usable_afterward": True,
                     "restored_cache_n": recovered["metrics"]["cache_n"],
                     "restored_prompt_n": recovered["metrics"]["prompt_n"],
-                    "comparison": comparison(expected, recovered),
+                    "comparison": recovered_comparison,
                 }
             )
     finally:
@@ -166,7 +181,10 @@ async def validate(
         "created_at": datetime.now(UTC).isoformat(),
         "engine_revision": settings.engine_revision,
         "model_id": model_id,
-        "scope": "specific deterministic native runs; numerical comparisons are observations",
+        "scope": (
+            "specific deterministic native runs; same-backend continuations must agree; "
+            "cross-device and cross-cache numerical comparisons are observations"
+        ),
         "prompt": PROMPT if prompt_tokens is None else "benchmark exact_tokens corpus",
         "requested_prompt_tokens": prompt_tokens,
         "context_size": context_size,
@@ -241,10 +259,17 @@ async def validate(
                             }
                             for item in repeated
                         ],
-                        "rejections": await rejection_checks(
-                            runtime, artifact, request, repeated[0]
-                        ),
+                        "repeat_comparison": comparison(repeated[0], repeated[1]),
+                        "rejections": [],
                     }
+                )
+                for index, item in enumerate(repeated, start=1):
+                    require_same_continuation(direct, item, f"{cache} local restore {index}")
+                require_same_continuation(
+                    repeated[0], repeated[1], f"{cache} repeated local restores"
+                )
+                report["local"][-1]["rejections"] = await rejection_checks(
+                    runtime, artifact, request, repeated[0]
                 )
                 if remote is not None:
                     profile = await remote.configure_matching(runtime.profile)
@@ -281,10 +306,15 @@ async def validate(
                                 }
                                 for item in decoded
                             ],
-                            "rejections": await rejection_checks(
-                                runtime, remote_artifact, request, decoded[0]
-                            ),
+                            "repeat_comparison": comparison(decoded[0], decoded[1]),
+                            "rejections": [],
                         }
+                    )
+                    require_same_continuation(
+                        decoded[0], decoded[1], f"{cache} repeated CUDA artifact Metal restores"
+                    )
+                    report["cuda_to_metal"][-1]["rejections"] = await rejection_checks(
+                        runtime, remote_artifact, request, decoded[0]
                     )
             finally:
                 if artifact:
