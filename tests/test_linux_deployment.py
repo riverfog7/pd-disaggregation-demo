@@ -1,6 +1,7 @@
 import ast
 import re
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -139,7 +140,7 @@ def test_failed_manual_rollback_has_restore_trap(monkeypatch):
         scripts.append(script)
         checked = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True)
         assert checked.returncode == 0, checked.stderr
-        return '{"status":"ready"}\n'
+        return '{"status":"ready","git_revision":"' + "a" * 40 + '"}\n'
 
     monkeypatch.setattr(operations, "_ssh", ssh)
     operations.rollback(Settings())
@@ -226,7 +227,11 @@ def test_interrupted_first_remote_deploy_adopts_cache_without_current_symlink(
     monkeypatch.setattr(operations, "_run", lambda *a, **kw: "https://github.com/test/demo.git")
     scripts = []
     monkeypatch.setattr(
-        operations, "_ssh", lambda _, script, **kw: scripts.append(script) or '{"status":"ready"}\n'
+        operations,
+        "_ssh",
+        lambda _, script, **kw: (
+            scripts.append(script) or '{"status":"ready","git_revision":"' + sha + '"}\n'
+        ),
     )
     operations.deploy(Settings(work_dir=tmp_path), sha)
     code = re.search(r"<<'PYBUILDER'\n(.*?)\nPYBUILDER", scripts[0], re.S).group(1)
@@ -328,3 +333,53 @@ def test_streamed_build_failure_retains_original_error_type():
             stream=True,
             stdout_to_stderr=True,
         )
+
+
+def test_asset_command_cannot_consume_piped_deployment_script():
+    import json
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "src/pd_disaggregation_demo/deployment/operations.py").read_text()
+    command = next(line for line in source.splitlines() if line.startswith("compose run "))
+    health = {"status": "ready", "git_revision": "a" * 40}
+    # Emulate Compose's default stdin pump using a real child of `bash -s`.
+    # Its model fetch prints pretty JSON, as the real Typer CLI does.
+    prefix = """compose() {
+  cat >/dev/null
+  printf '{\n  "path": "/cache/model.gguf"\n}\n'
+}
+"""
+    suffix = "printf '%s\\n' '" + json.dumps(health) + "'\n"
+    broken = subprocess.run(
+        ["bash", "-s"],
+        input=prefix + "compose run --rm --no-deps models\n" + suffix,
+        text=True,
+        capture_output=True,
+    )
+    assert broken.returncode == 0
+    assert json.loads(broken.stdout) == {"path": "/cache/model.gguf"}
+    with pytest.raises(RuntimeError, match="startup/revision verification did not complete"):
+        operations._parse_worker_health(broken.stdout, health["git_revision"])
+
+    fixed = subprocess.run(
+        ["bash", "-s"],
+        input=prefix + command + "\n" + suffix,
+        text=True,
+        capture_output=True,
+    )
+    assert fixed.returncode == 0, fixed.stderr
+    assert json.loads(fixed.stdout) == health
+    assert json.loads(fixed.stderr) == {"path": "/cache/model.gguf"}
+    assert "--interactive=false" in command and " -T " in command
+    assert operations._parse_worker_health(fixed.stdout, health["git_revision"]) == health
+
+
+def test_health_parser_ignores_pretty_model_json_and_requires_exact_revision():
+    import json
+
+    health = {"status": "ready", "git_revision": "b" * 40}
+    output = '{\n  "path": "/cache/model.gguf"\n}\n' + json.dumps(health) + "\n"
+    assert operations._parse_worker_health(output, "b" * 40) == health
+    for invalid in [output, '{"status":"ready"}\n', ""]:
+        with pytest.raises(RuntimeError, match="no ready worker health JSON"):
+            operations._parse_worker_health(invalid, "a" * 40)

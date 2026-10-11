@@ -228,6 +228,31 @@ PYHEALTH
 """
 
 
+def _parse_worker_health(output: str, revision: str | None = None) -> dict:
+    """Accept only a complete ready worker result, ignoring other command output."""
+    for line in reversed(output.splitlines()):
+        try:
+            health = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(health, dict):
+            continue
+        returned_revision = health.get("git_revision")
+        if (
+            health.get("status") in ("ok", "ready")
+            and isinstance(returned_revision, str)
+            and SHA.fullmatch(returned_revision)
+            and (revision is None or returned_revision == revision)
+        ):
+            return health
+    expected = f" for revision {revision}" if revision else ""
+    raise RuntimeError(
+        f"Worker startup/revision verification did not complete{expected}: "
+        "deployment returned no ready worker health JSON. Inspect streamed deployment "
+        f"diagnostics and the demo worker logs. Last stdout: {output[-2000:]!r}"
+    )
+
+
 def deploy(
     settings: Settings,
     revision: str,
@@ -359,7 +384,7 @@ cleanup_build
 trap - EXIT
 # Fetch only selected pinned model through its independent HF asset cache.
 # The serving worker receives the resulting model directory read-only.
-compose run --rm --no-deps models
+compose run --interactive=false -T --rm --no-deps models </dev/null >&2
 prior=$(readlink "$root/current" || true)
 restore() {{
   rc=$?
@@ -390,10 +415,7 @@ trap - EXIT
     # Fetch/readiness allowances must not consume its build deadline.
     total_timeout = build_timeout + settings.request_timeout + health_timeout + 300
     output = _ssh(settings, script, timeout=total_timeout, stream=True)
-    # Git/build progress can coexist with the final JSON health line.
-    health = next(
-        json.loads(line) for line in reversed(output.splitlines()) if line.startswith("{")
-    )
+    health = _parse_worker_health(output, revision)
     return {
         "revision": revision,
         "health": health,
@@ -438,11 +460,7 @@ trap - EXIT
         timeout=health_timeout + 120,
         stream=True,
     )
-    return {
-        "health": next(
-            json.loads(line) for line in reversed(output.splitlines()) if line.startswith("{")
-        )
-    }
+    return {"health": _parse_worker_health(output)}
 
 
 def _local_compose(settings: Settings, profile: RuntimeProfile | None = None) -> list[str]:
@@ -609,7 +627,10 @@ def serve_linux(
     args = _local_compose(settings, profile)
     _bounded_local_build(settings, args, build_timeout=build_timeout)
     _run(
-        args + ["run", "--rm", "--no-deps", "models"], timeout=settings.request_timeout, stream=True
+        args + ["run", "--interactive=false", "-T", "--rm", "--no-deps", "models"],
+        timeout=settings.request_timeout,
+        stream=True,
+        stdout_to_stderr=True,
     )
     up = ["up", "--no-build"] + (["-d"] if detach else []) + ["worker"]
     output = _run(args + up, timeout=3600)
