@@ -212,6 +212,7 @@ async def validate(
             artifact = None
             remote_artifact = None
             remote_manifest = None
+            failure = None
             try:
                 await runtime.start()
                 if prompt_tokens is None:
@@ -316,19 +317,36 @@ async def validate(
                     report["cuda_to_metal"][-1]["rejections"] = await rejection_checks(
                         runtime, remote_artifact, request, decoded[0]
                     )
+            except BaseException as error:
+                failure = error
+                raise
             finally:
                 if artifact:
                     delete_artifact(artifact)
                 if remote_artifact:
                     delete_artifact(remote_artifact)
-                await runtime.close()
+                try:
+                    await runtime.close()
+                except Exception as cleanup_error:
+                    if failure is None:
+                        raise
+                    failure.add_note(f"Native engine cleanup failed: {cleanup_error}")
                 if remote and remote_manifest:
-                    await remote.delete(remote_manifest.artifact_id)
+                    try:
+                        await remote.delete(remote_manifest.artifact_id)
+                    except Exception as cleanup_error:
+                        if failure is None:
+                            raise
+                        failure.add_note(f"Remote artifact cleanup failed: {cleanup_error}")
         report["cross_cache_comparison"] = comparison(direct_runs[0], direct_runs[1])
         report["success"] = True
         return report
     except Exception as error:
-        report["error"] = {"type": type(error).__name__, "message": str(error)}
+        report["error"] = {
+            "type": type(error).__name__,
+            "message": str(error),
+            "cleanup_notes": getattr(error, "__notes__", []),
+        }
         return report
     finally:
         if remote:

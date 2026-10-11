@@ -50,7 +50,12 @@ def make_artifact(settings, profile, token_ids, backend):
 
 @pytest.fixture
 def fake_engines(monkeypatch):
-    scenario: dict[str, Any] = {"failure": None, "recovery_case": None, "instances": []}
+    scenario: dict[str, Any] = {
+        "failure": None,
+        "recovery_case": None,
+        "instances": [],
+        "delete_failure": False,
+    }
 
     class Runtime:
         startup_ms = 1
@@ -143,10 +148,13 @@ def fake_engines(monkeypatch):
             return self.artifact.manifest
 
         async def download(self, manifest, fingerprint):
+            if scenario["failure"] == "remote-download":
+                raise RuntimeError("Original transfer ReadError")
             return self.artifact, 2
 
         async def delete(self, artifact_id):
-            pass
+            if scenario["delete_failure"]:
+                raise RuntimeError("Cleanup DELETE ReadError")
 
         async def close(self):
             pass
@@ -209,3 +217,22 @@ async def test_artifact_rejection_recovery_must_match_saved_prefix(tmp_path, fak
     assert f"Recovery after {case} artifact rejection" in report["error"]["message"]
     assert all(runtime.closed for runtime in fake_engines["instances"])
     assert not list(tmp_path.rglob("negative-tests"))
+
+
+@pytest.mark.parametrize(
+    "failure, primary_message",
+    [
+        ("remote-download", "Original transfer ReadError"),
+        ("remote-repeat", "repeated CUDA artifact Metal restores"),
+    ],
+)
+async def test_acceptance_cleanup_failure_does_not_mask_handoff_diagnostics(
+    tmp_path, fake_engines, failure, primary_message
+):
+    fake_engines["failure"] = failure
+    fake_engines["delete_failure"] = True
+    report = await validation.validate(Settings(work_dir=tmp_path), "qwen3.5-0.8b", 2, True)
+    assert not report["success"]
+    assert primary_message in report["error"]["message"]
+    assert any("Cleanup DELETE ReadError" in note for note in report["error"]["cleanup_notes"])
+    assert all(runtime.closed for runtime in fake_engines["instances"])
