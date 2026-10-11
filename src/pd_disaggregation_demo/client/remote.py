@@ -26,8 +26,19 @@ class RemoteWorker:
     async def close(self) -> None:
         await self._client.aclose()
 
+    def _transport_error(self, error: httpx.TransportError, operation: str) -> RuntimeError:
+        detail = str(error).strip() or "no transport detail"
+        return RuntimeError(
+            f"Remote worker {operation} at {self.settings.remote_url} failed: "
+            f"{type(error).__name__} ({detail}). Check that the worker API is running and "
+            "reachable; if using an SSH tunnel, verify its remote destination and worker port."
+        )
+
     async def _json(self, method: str, path: str, payload: dict | None = None) -> dict:
-        response = await self._client.request(method, path, json=payload)
+        try:
+            response = await self._client.request(method, path, json=payload)
+        except httpx.TransportError as error:
+            raise self._transport_error(error, f"{method} {path}") from error
         if response.status_code == 422:
             detail = response.json().get("detail")
             if isinstance(detail, dict) and detail.get("code") == "admission_refused":
@@ -121,6 +132,10 @@ class RemoteWorker:
             artifact = PrefillArtifact(manifest=manifest, state_path=state)
             write_manifest(artifact)
             return artifact, (time.perf_counter() - start) * 1000
-        except BaseException:
+        except BaseException as error:
             shutil.rmtree(directory, ignore_errors=True)
+            if isinstance(error, httpx.TransportError):
+                raise self._transport_error(
+                    error, f"state download (GET /artifacts/{manifest.artifact_id}/state)"
+                ) from error
             raise

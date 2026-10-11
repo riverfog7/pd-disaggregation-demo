@@ -245,6 +245,84 @@ async def test_remote_download_bounds_and_checksum(tmp_path):
     await remote.close()
 
 
+@pytest.mark.parametrize(
+    "method,path",
+    [("GET", "/health"), ("POST", "/configure"), ("POST", "/cancel"), ("DELETE", "/artifacts/id")],
+)
+async def test_remote_control_empty_transport_error_is_actionable(tmp_path, method, path):
+    settings = Settings(work_dir=tmp_path, remote_url="http://127.0.0.1:8090")
+    remote = RemoteWorker(settings)
+    await remote._client.aclose()
+
+    def unavailable(request):
+        raise httpx.ReadError("", request=request)
+
+    remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(unavailable), base_url=settings.remote_url
+    )
+    try:
+        with pytest.raises(RuntimeError) as caught:
+            await remote._json(method, path)
+        message = str(caught.value)
+        assert f"{method} {path}" in message
+        assert settings.remote_url in message
+        assert "ReadError" in message
+        assert "SSH tunnel" in message
+        assert isinstance(caught.value.__cause__, httpx.ReadError)
+    finally:
+        await remote.close()
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+async def test_remote_interrupted_download_cleans_partial_state(tmp_path, cancelled):
+    from pd_disaggregation_demo.artifacts import CHUNK_SIZE
+
+    settings = Settings(work_dir=tmp_path, remote_url="http://127.0.0.1:8090")
+    remote = RemoteWorker(settings)
+    await remote._client.aclose()
+    chunk = b"x" * CHUNK_SIZE
+    manifest = ArtifactManifest(
+        model_id="qwen3.5-4b",
+        fingerprint=fingerprint(),
+        token_ids=[1, 2],
+        prefix_tokens=1,
+        source_backend="cuda",
+        state_bytes=len(chunk) * 2,
+        state_sha256=hashlib.sha256(chunk * 2).hexdigest(),
+    )
+    directory = settings.artifacts_dir / manifest.artifact_id
+
+    class InterruptedState(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield chunk
+            assert (directory / "state.bin.part").stat().st_size == len(chunk)
+            if cancelled:
+                raise asyncio.CancelledError()
+            raise httpx.ReadError("")
+
+    remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, stream=InterruptedState())
+        ),
+        base_url=settings.remote_url,
+    )
+    try:
+        expected = asyncio.CancelledError if cancelled else RuntimeError
+        with pytest.raises(expected) as caught:
+            await remote.download(manifest, fingerprint())
+        assert not directory.exists()
+        if not cancelled:
+            message = str(caught.value)
+            assert "state download" in message
+            assert f"/artifacts/{manifest.artifact_id}/state" in message
+            assert settings.remote_url in message
+            assert "ReadError" in message
+            assert "SSH tunnel" in message
+            assert isinstance(caught.value.__cause__, httpx.ReadError)
+    finally:
+        await remote.close()
+
+
 async def test_pipeline_cancel_waits_for_slot_cleanup(tmp_path):
     pipeline = Pipeline(Settings(work_dir=tmp_path))
     started = asyncio.Event()
