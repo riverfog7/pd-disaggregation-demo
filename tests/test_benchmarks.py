@@ -4,6 +4,7 @@ import csv
 import json
 import re
 import time
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -365,8 +366,12 @@ async def test_history_downloads_use_stable_api_routes_under_demo_mount(tmp_path
     )
     demo = build_ui(pipeline, runtime_settings)
     compare = next(fn for fn in demo.fns.values() if fn.name == "compare")
-    _, markup = compare.fn([report.run_id])
+    _, markup, stage_details, timeline, model = compare.fn([report.run_id])
     assert "&lt;saved run&gt;" in markup
+    assert "Selected run: &lt;saved run&gt;" in stage_details
+    assert "256 prompt tokens · pair 1" in stage_details
+    assert timeline.layout.title.text == "Whole-request timeline"
+    assert "Modeled ideal 1Gbps" in model
     urls = re.findall(r'href="([^"]+)"', markup)
     assert urls == [
         f"/reports/{report.run_id}/{extension}" for extension in ("json", "csv", "html")
@@ -382,6 +387,45 @@ async def test_history_downloads_use_stable_api_routes_under_demo_mount(tmp_path
             response = await client.get(url)
             assert response.status_code == 200
             assert response.content == Path(report.exports[extension]).read_bytes()
+
+
+async def test_history_details_choose_latest_selected_run_and_clear_without_selection(tmp_path):
+    pytest.importorskip("gradio")
+    from pd_disaggregation_demo.benchmarks import save_report
+    from pd_disaggregation_demo.ui.app import build_ui
+
+    pipeline = FakePipeline()
+    runtime_settings = settings(tmp_path)
+    older = await collect_benchmark(
+        pipeline,
+        BenchmarkConfig(
+            prompt_sizes=[256], repeats=1, label="Older CLI run", bootstrap_samples=100
+        ),
+        runtime_settings,
+    )
+    newer = older.model_copy(deep=True)
+    newer.run_id = "f" * 32
+    newer.created_at = older.created_at + timedelta(minutes=1)
+    newer.config.label = "Newer CLI run"
+    newer.samples[0].result.metrics.total_ms = 999
+    save_report(newer, runtime_settings.reports_dir)
+    source = {path: path.read_bytes() for path in runtime_settings.reports_dir.glob("*.json")}
+    demo = build_ui(pipeline, runtime_settings)
+    compare = next(fn for fn in demo.fns.values() if fn.name == "compare")
+    update = compare.fn([older.run_id, newer.run_id])
+    assert len(update) == len(compare.outputs) == 5
+    assert "Selected run: Newer CLI run" in update[2]
+    assert "most recent of 2 selected runs" in update[2]
+    assert "999.00" in update[2]
+    bars = [trace for trace in update[3].data if trace.type == "bar"]
+    assert sum((trace.x[0] or 0) for trace in bars) == 999
+    assert "Modeled ideal 1Gbps" in update[4]
+    assert {path: path.read_bytes() for path in source} == source
+    cleared = compare.fn([])
+    assert len(cleared) == 5
+    assert "Select a saved run" in cleared[2]
+    assert cleared[3] is None
+    assert cleared[4] == ""
 
 
 async def test_ui_closing_callback_saves_cancelled_report_and_releases_session(tmp_path):

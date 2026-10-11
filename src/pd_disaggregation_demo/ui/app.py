@@ -210,10 +210,36 @@ def build_ui(pipeline, settings) -> gr.Blocks:
             for extension in ("json", "csv", "html")
             if extension in report.exports
         )
-        return curves(reports), (
+        downloads = (
             f"<p>Download selected reports:</p><ul>{links}</ul>"
             if links
             else "<p>Select saved runs to download their reports.</p>"
+        )
+        if not reports:
+            return (
+                curves([]),
+                downloads,
+                "<p>Select a saved run to inspect its measured stages.</p>",
+                None,
+                "",
+            )
+        latest = reports[0]  # History is ordered by creation time, newest first.
+        caption = (
+            f"<p><strong>Selected run: {html.escape(latest.config.label or latest.run_id[:8])}"
+            f"</strong> · {latest.created_at:%Y-%m-%d %H:%M} · {latest.status} "
+            f"· {latest.run_id[:8]}</p>"
+        )
+        if len(reports) > 1:
+            caption += (
+                f"<p>Stage details below show the most recent of {len(reports)} selected runs. "
+                "The comparison chart above includes all selected runs.</p>"
+            )
+        return (
+            curves(reports),
+            downloads,
+            caption + stage_comparison_html(latest),
+            phases(latest),
+            projection_html(latest),
         )
 
     async def chat(prompt, history, mode, model, cache, context, batch, ubatch, output):
@@ -364,6 +390,9 @@ def build_ui(pipeline, settings) -> gr.Blocks:
                 "transport framing, checksum and disk costs in that timer are omitted."
             )
             history_downloads = gr.HTML("<p>Select saved runs to download their reports.</p>")
+            history_stages = gr.HTML("<p>Select a saved run to inspect its measured stages.</p>")
+            history_timeline = gr.Plot(label="Selected run · whole-request timeline")
+            history_projection = gr.HTML()
         with gr.Tab("Chat"):
             gr.Markdown(
                 "Chat uses the same model configuration and single-request runtime as the "
@@ -408,5 +437,10 @@ def build_ui(pipeline, settings) -> gr.Blocks:
             concurrency_limit=1,
         )
         refresh_button.click(refresh, outputs=history, queue=False)
-        compare_button.click(compare, history, [history_plot, history_downloads], queue=False)
+        compare_button.click(
+            compare,
+            history,
+            [history_plot, history_downloads, history_stages, history_timeline, history_projection],
+            queue=False,
+        )
     return demo.queue(default_concurrency_limit=1)
