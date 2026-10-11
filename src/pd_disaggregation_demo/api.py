@@ -5,6 +5,7 @@ import contextlib
 import json
 import re
 import time
+from collections import deque
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -26,6 +27,10 @@ from .models import (
     RuntimeProfile,
 )
 from .pipeline import Pipeline
+
+BENCHMARK_REPLAY_LIMIT = 256
+BENCHMARK_JOB_LIMIT = 16
+BENCHMARK_TERMINAL_KINDS = {"complete", "cancelled", "error"}
 
 
 class ChatMessage(BaseModel):
@@ -178,21 +183,43 @@ def create_app(
     async def benchmark(config: BenchmarkConfig):
         if any(not job["task"].done() for job in jobs.values()):
             raise HTTPException(409, "A benchmark is already active")
+        # Reports remain on disk; only the most recent HTTP job handles stay in memory.
+        for old_id in list(jobs)[: max(0, len(jobs) - BENCHMARK_JOB_LIMIT + 1)]:
+            del jobs[old_id]
         job_id = uuid4().hex
-        job: dict[str, Any] = {"events": [], "report": None, "cancel": asyncio.Event()}
+        job: dict[str, Any] = {
+            "events": deque(maxlen=BENCHMARK_REPLAY_LIMIT),
+            "event_count": 0,
+            "report": None,
+            "status": "running",
+            "cancel": asyncio.Event(),
+        }
+
+        def remember(event):
+            job["events"].append(event)
+            job["event_count"] += 1
 
         async def run():
             try:
                 async for event in run_benchmark(
                     pipeline, config, settings, cancel_event=job["cancel"]
                 ):
-                    job["events"].append(event.model_dump(mode="json"))
                     if event.report:
-                        job["report"] = event.report.model_dump(mode="json")
+                        job["report"] = event.report
+                        job["status"] = event.report.status
+                    # A single live report owns all samples. Replay stores no growing snapshots.
+                    remember(event.model_dump(mode="json", exclude={"report"}))
             except asyncio.CancelledError:
-                job["events"].append({"kind": "cancelled"})
+                job["status"] = "cancelled"
+                if job["report"] is not None:
+                    job["report"].status = "cancelled"
+                remember({"kind": "cancelled"})
             except Exception as exc:
-                job["events"].append({"kind": "error", "message": str(exc)})
+                job["status"] = "failed"
+                if job["report"] is not None:
+                    job["report"].status = "failed"
+                    job["report"].errors.append(str(exc))
+                remember({"kind": "error", "message": str(exc)})
 
         job["task"] = asyncio.create_task(run())
         jobs[job_id] = job
@@ -213,22 +240,35 @@ def create_app(
         if job_id not in jobs:
             raise HTTPException(404, "Unknown benchmark job")
         job = jobs[job_id]
-        return {"done": job["task"].done(), "report": job["report"], "events": job["events"]}
+        return {
+            "done": job["task"].done(),
+            "status": job["status"],
+            "report": job["report"].model_dump(mode="json") if job["report"] is not None else None,
+            "events": list(job["events"]),
+            "events_dropped": job["event_count"] - len(job["events"]),
+        }
 
     @app.get("/benchmarks/{job_id}/events")
     async def benchmark_events(job_id: str):
         if job_id not in jobs:
             raise HTTPException(404, "Unknown benchmark job")
+        job = jobs[job_id]
 
         async def stream():
-            job = jobs[job_id]
             position = 0
             while True:
-                for event in job["events"][position:]:
+                retained = list(job["events"])
+                first = job["event_count"] - len(retained)
+                for index in range(max(0, position - first), len(retained)):
+                    event = retained[index]
+                    if event["kind"] in BENCHMARK_TERMINAL_KINDS and job["report"] is not None:
+                        event = {**event, "report": job["report"].model_dump(mode="json")}
                     yield _sse(event, event["kind"])
-                    position += 1
+                    position = first + index + 1
                 if job["task"].done():
-                    break
+                    if position >= job["event_count"]:
+                        break
+                    continue
                 await asyncio.sleep(0.2)
 
         return StreamingResponse(stream(), media_type="text/event-stream")
