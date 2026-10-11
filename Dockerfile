@@ -35,7 +35,8 @@ LABEL org.opencontainers.image.revision=$GIT_REVISION \
       org.pd-demo.engine.revision=23b0202a189c44a54625aadcb37a946dd1d6278d
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libgomp1 && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 worker
+    && if ! getent passwd 1000 >/dev/null; then useradd --create-home --uid 1000 worker; fi \
+    && install -d -o 1000 -g 1000 /home/worker
 COPY --from=engine /opt/llama /opt/llama
 COPY --from=python /opt/python /opt/python
 COPY --from=python /app/.venv /app/.venv
@@ -44,8 +45,8 @@ ENV PATH=/app/.venv/bin:$PATH \
     PDD_ENGINE_BINARY=/opt/llama/bin/llama-server \
     PDD_CACHE_DIR=/data/cache PDD_WORK_DIR=/data/work \
     PDD_HOST=0.0.0.0 PDD_WORKER_PORT=8090 PDD_GIT_REVISION=$GIT_REVISION \
-    PYTHONUNBUFFERED=1
-USER worker
+    PYTHONUNBUFFERED=1 HOME=/home/worker
+USER 1000:1000
 WORKDIR /app
 EXPOSE 8090
 HEALTHCHECK --interval=15s --timeout=5s --start-period=600s --retries=3 \

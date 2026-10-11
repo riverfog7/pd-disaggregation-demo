@@ -14,6 +14,7 @@ services:
       - nvidia.com/gpu=all
     volumes:
       - ${PDD_REMOTE_DATA:-./.pd-worker}/cache:/data/cache
+      - ${PDD_REMOTE_DATA:-./.pd-worker}/cache/models:/data/cache/models:ro
       - ${PDD_REMOTE_DATA:-./.pd-worker}/work:/data/work
     environment:
       PDD_GIT_REVISION: ${PDD_RELEASE_SHA:-unknown}
@@ -32,6 +33,23 @@ services:
     init: true
     restart: 'no'
     stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  models:
+    profiles: ['assets']
+    image: pd-disaggregation-demo:${PDD_RELEASE_SHA:-dev}
+    entrypoint: ['pd-demo']
+    command: ['models', 'fetch', '--model', '${PDD_MODEL_ID:-qwen3.5-4b}']
+    volumes:
+      - ${PDD_REMOTE_DATA:-./.pd-worker}/cache:/data/cache
+    mem_limit: ${PDD_WORKER_MEMORY:-4g}
+    memswap_limit: ${PDD_WORKER_MEMORY:-4g}
+    cpus: '1'
+    pids_limit: 64
+    init: true
+    restart: 'no'
     security_opt:
       - no-new-privileges:true
     cap_drop:

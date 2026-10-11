@@ -63,3 +63,17 @@ minimum reserves. Live worker state downloads read at most 1MiB per chunk, and
 only canonical UUID artifact directories are accepted. Export checksums and sizes
 are checked before publication; expired state is reaped and in-use transfers are
 protected from deletion.
+
+The separate `models` Compose service runs once with `pd-demo models fetch
+--model <selected-id>` before a worker switch. It has no GPU devices or published
+port and only the asset cache writable. Serving workers mount `/data/cache/models`
+read-only. To switch to another model, prefetch it with this asset service (or
+redeploy with the selected profile) before `/configure`; the worker verifies the
+existing pinned file and never downloads into its read-only model directory.
+
+CPU FFN admission does not estimate tensor placement from parameter count: it
+keeps the full conservative GPU weight budget and also budgets all weights on
+host. Large profiles such as 27B can therefore be rejected even with CPU FFN
+placement. A safe future relaxation requires measured architecture-specific
+weight residency, compute/cache peaks and mmap behavior; this release does not
+claim that an unmeasured placement is safe.

@@ -1,5 +1,6 @@
 """Live resource snapshots and conservative pre-load admission estimates."""
 
+import importlib
 import os
 import platform
 import shutil
@@ -36,7 +37,7 @@ def _cgroup_available(root: Path = Path("/sys/fs/cgroup")) -> int | None:
 
 def _gpu_snapshot() -> dict:
     try:
-        import pynvml
+        pynvml = importlib.import_module("pynvml")
 
         pynvml.nvmlInit()
         try:

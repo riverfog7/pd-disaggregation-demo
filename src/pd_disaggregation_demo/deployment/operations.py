@@ -196,7 +196,7 @@ test "$(id -u)" = 1000 || {{ echo 'Demo data owner must have uid 1000' >&2; exit
 if [ ! -e "$repo/.git" ]; then
   git clone --no-checkout {shlex.quote(origin)} "$repo"
 fi
-mkdir -p "$root/releases" "$root/env" "$root/data/cache" "$root/data/work"
+mkdir -p "$root/releases" "$root/env" "$root/data/cache/models" "$root/data/work"
 git -C "$repo" fetch origin "refs/heads/pd-deploy/$revision"
 test "$(git -C "$repo" rev-parse FETCH_HEAD)" = "$revision"
 release="$root/releases/$revision"
@@ -250,6 +250,9 @@ trap cleanup_build EXIT
 compose build --builder "$builder" worker
 cleanup_build
 trap - EXIT
+# Fetch only selected pinned model through its independent HF asset cache.
+# The serving worker receives the resulting model directory read-only.
+compose run --rm --no-deps models
 prior=$(readlink "$root/current" || true)
 restore() {{
   rc=$?
@@ -343,6 +346,7 @@ def _local_compose(settings: Settings, profile: RuntimeProfile | None = None) ->
         settings.work_dir.mkdir(parents=True, exist_ok=True)
         data = settings.work_dir / "worker-data"
         (data / "cache").mkdir(parents=True, exist_ok=True)
+        (data / "cache" / "models").mkdir(parents=True, exist_ok=True)
         (data / "work").mkdir(parents=True, exist_ok=True)
         if hasattr(os, "getuid") and os.getuid() != 1000:
             raise ValueError("Linux Compose asset paths require the runtime uid 1000 owner")
@@ -415,6 +419,7 @@ def _bounded_local_build(settings: Settings, compose: list[str]) -> None:
 def serve_linux(settings: Settings, profile: RuntimeProfile, detach: bool = True) -> dict:
     args = _local_compose(settings, profile)
     _bounded_local_build(settings, args)
+    _run(args + ["run", "--rm", "--no-deps", "models"], timeout=settings.request_timeout)
     up = ["up", "--no-build"] + (["-d"] if detach else []) + ["worker"]
     output = _run(args + up, timeout=3600)
     return {"status": "started", "output": output, "port": settings.worker_port}
