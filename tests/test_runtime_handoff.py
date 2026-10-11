@@ -978,3 +978,86 @@ async def test_native_cleanup_deadline_preserves_primary_failure(native, primary
     )
     assert not runtime._lock.locked()
     assert runtime._active is None
+
+
+@pytest.mark.parametrize("cancel_scope", [False, True])
+async def test_cancelled_configure_lazily_restores_previous_profile_for_direct_generate(
+    native, cancel_scope
+):
+    runtime, server = native
+    previous = runtime.profile
+    target = previous.model_copy(update={"cache_type": "q8_0"})
+    pipeline = Pipeline(runtime.settings, previous)
+    pipeline.runtime = runtime
+    loading = asyncio.Event()
+    attempts = []
+
+    class OwnedProcess:
+        returncode = None
+        terminated = False
+
+        def terminate(self):
+            self.terminated = True
+            self.returncode = 0
+
+        def kill(self):
+            raise AssertionError("Graceful owned-process cleanup should succeed")
+
+        async def wait(self):
+            await asyncio.sleep(0)
+            return self.returncode
+
+    owned = OwnedProcess()
+
+    async def start():
+        attempts.append(runtime.profile)
+        runtime._client = httpx.AsyncClient(
+            transport=httpx.MockTransport(server.handle), base_url="http://native"
+        )
+        if runtime.profile == target:
+            runtime._process = owned
+            loading.set()
+            await asyncio.Event().wait()
+        runtime.fingerprint = fingerprint()
+        runtime.startup_ms = 50
+
+    runtime.start = start
+    scope_holder = []
+
+    async def configure():
+        if cancel_scope:
+            with anyio.CancelScope() as scope:
+                scope_holder.append(scope)
+                await pipeline.configure(target)
+        else:
+            await pipeline.configure(target)
+
+    task = asyncio.create_task(configure())
+    await loading.wait()
+    if cancel_scope:
+        scope_holder[0].cancel()
+        await asyncio.wait_for(task, 1)
+    else:
+        await pipeline.cancel()
+        assert task.cancelled()
+    assert owned.terminated
+    assert runtime._process is None
+    assert runtime._client is None
+    assert runtime.profile == pipeline.profile == previous
+    assert runtime._restart_pending
+    assert not runtime._lock.locked()
+    assert not pipeline._lock.locked()
+    events = [
+        event
+        async for event in pipeline.generate(
+            GenerationRequest(token_ids=[1, 2, 3, 4], max_tokens=2)
+        )
+    ]
+    result = events[-1].result
+    assert result is not None
+    assert result.local_profile == previous
+    assert result.text == "hello world"
+    assert attempts == [target, previous]
+    assert not runtime._restart_pending
+    assert runtime.startup_ms == 50
+    await pipeline.close()

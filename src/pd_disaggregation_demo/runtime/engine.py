@@ -62,6 +62,7 @@ class LlamaRuntime:
         self._peak_memory: dict = {}
         self._native_props: dict | None = None
         self._effective_settings: dict | None = None
+        self._restart_pending = False
 
     def _arguments(self, binary: Path, model_path: Path) -> list[str]:
         p = self.profile
@@ -126,8 +127,9 @@ class LlamaRuntime:
 
     async def start(self) -> None:
         if self._client and self._process_reusable():
+            self._restart_pending = False
             return
-        if self._client:
+        if self._client or self._process:
             await self.close()
         from ..catalog import ensure_model, get_model
         from ..resources import check_admission
@@ -177,27 +179,44 @@ class LlamaRuntime:
                     if response.status_code == 200:
                         await self._capture_native_props()
                         self.startup_ms = elapsed_ms(started)
+                        self._restart_pending = False
                         return
                 except httpx.HTTPError:
                     pass
                 await asyncio.sleep(0.2)
             raise TimeoutError("llama-server startup timed out")
-        except BaseException:
-            await self.close()
+        except BaseException as error:
+            await self._close_after_failure(error)
             raise
+
+    async def _close_after_failure(self, error: BaseException) -> None:
+        with anyio.move_on_after(15, shield=True) as cleanup:
+            try:
+                await self.close()
+            except Exception as cleanup_error:
+                error.add_note(f"Owned engine cleanup failed: {cleanup_error}")
+        if cleanup.cancel_called:
+            if self._process and self._process.returncode is None:
+                with contextlib.suppress(ProcessLookupError):
+                    self._process.kill()
+            error.add_note("Owned engine cleanup exceeded its fifteen-second deadline")
 
     async def close(self) -> None:
         await self.cancel()
         if self._client:
-            await self._client.aclose()
+            with anyio.move_on_after(2, shield=True):
+                with contextlib.suppress(Exception):
+                    await self._client.aclose()
             self._client = None
         if self._process and self._process.returncode is None:
-            self._process.terminate()
+            with contextlib.suppress(ProcessLookupError):
+                self._process.terminate()
             try:
                 await asyncio.wait_for(self._process.wait(), 10)
             except TimeoutError:
-                self._process.kill()
-                await self._process.wait()
+                with contextlib.suppress(ProcessLookupError):
+                    self._process.kill()
+                await asyncio.wait_for(self._process.wait(), 2)
         self._process = None
         self._native_props = None
         self._effective_settings = None
@@ -213,10 +232,17 @@ class LlamaRuntime:
                 return
             previous = self.profile
             was_started = self._client is not None and self._process_reusable()
-            await self.close()
-            self.profile = profile
             try:
+                await self.close()
+                self.profile = profile
                 await self.start()
+            except asyncio.CancelledError as cancelled:
+                await self._close_after_failure(cancelled)
+                self.profile = previous
+                self.fingerprint = None
+                self._admission = None
+                self._restart_pending = True
+                raise
             except Exception as rejected:
                 self.profile = previous
                 if was_started:
@@ -227,6 +253,17 @@ class LlamaRuntime:
                             f"Configuration failed ({rejected}); prior runtime restart also failed"
                         ) from rollback
                 raise
+
+    async def ensure_ready(self) -> None:
+        """Restart the prior profile after cancelled configuration, before timing a request."""
+        if not self._restart_pending:
+            return
+        if self._lock.locked():
+            raise RuntimeError("Runtime has an active request")
+        async with self._lock:
+            if self._restart_pending:
+                await self.start()
+                self._restart_pending = False
 
     async def _capture_native_props(self) -> None:
         response = await self._http().get("/props")
@@ -299,6 +336,7 @@ class LlamaRuntime:
             "fingerprint": self.fingerprint.model_dump() if self.fingerprint else None,
             "engine_revision": self.settings.engine_revision,
             "startup_ms": self.startup_ms,
+            "restart_pending": self._restart_pending,
             "native_exit_code": self._process.returncode if self._process else None,
             "native_props": self._native_props,
             "effective_settings": self._effective_settings,
@@ -323,6 +361,7 @@ class LlamaRuntime:
         return value
 
     async def format_chat(self, messages: list[dict]) -> str:
+        await self.ensure_ready()
         result = await self._post("/apply-template", {"messages": messages})
         prompt = result.get("prompt")
         if not isinstance(prompt, str):
@@ -330,6 +369,7 @@ class LlamaRuntime:
         return prompt
 
     async def tokenize(self, prompt: str) -> list[int]:
+        await self.ensure_ready()
         result = await self._post("/tokenize", {"content": prompt, "add_special": True})
         tokens = result["tokens"]
         if not all(type(token) is int for token in tokens):
@@ -420,6 +460,7 @@ class LlamaRuntime:
             raise ValueError("Prompt plus output exceeds configured context")
 
     async def prefill(self, token_ids: list[int]) -> PrefillArtifact:
+        await self.ensure_ready()
         if self.fingerprint is None:
             raise RuntimeError("Runtime has not been started")
         self._check_context(token_ids)
@@ -508,6 +549,7 @@ class LlamaRuntime:
                 temporary.unlink(missing_ok=True)
 
     async def generate(self, request: GenerationRequest) -> AsyncGenerator[GenerationEvent]:
+        await self.ensure_ready()
         if request.mode != "local":
             raise ValueError(
                 "Native runtime only implements local generation; use Pipeline for split"
@@ -533,6 +575,7 @@ class LlamaRuntime:
     async def decode(
         self, artifact: PrefillArtifact, request: DecodeRequest
     ) -> AsyncGenerator[GenerationEvent]:
+        await self.ensure_ready()
         start = time.perf_counter()
         await asyncio.to_thread(validate_artifact, artifact, self.fingerprint)
         if artifact.manifest.model_id != self.profile.model_id:
