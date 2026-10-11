@@ -129,6 +129,24 @@ fi
     return snapshot
 
 
+def stop_remote(settings: Settings) -> dict:
+    """Stop the currently deployed demo worker, retaining its image, data and release."""
+    _, root = _remote_paths(settings)
+    output = _ssh(
+        settings,
+        f"""set -eu
+root={root}
+release=$(readlink "$root/current")
+test "$(dirname "$release")" = "$root/releases"
+revision=$(basename "$release")
+test "$(git -C "$release" rev-parse HEAD)" = "$revision"
+docker compose --project-name {PROJECT} --env-file "$root/env/$revision.env" \\
+  -f "$release/compose.yaml" stop worker
+""",
+    )
+    return {"status": "stopped", "output": output}
+
+
 def open_tunnel(
     settings: Settings, *, local_port: int | None = None, ssh_host: str | None = None
 ) -> subprocess.Popen:

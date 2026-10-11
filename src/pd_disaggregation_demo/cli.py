@@ -273,11 +273,13 @@ def status(side: Annotated[str, typer.Argument()] = "mac"):
 @app.command()
 def stop(side: Annotated[str, typer.Argument()] = "mac"):
     """Stop only the server owned by this demo."""
-    from .deployment import stop_linux
+    from .deployment import stop_linux, stop_remote
 
     settings = _settings()
     if side == "linux":
         _json(stop_linux(settings))
+    elif side == "remote":
+        _json(stop_remote(settings))
     elif side == "mac":
         process = _owned_process(settings)
         if process is not None:
@@ -289,7 +291,7 @@ def stop(side: Annotated[str, typer.Argument()] = "mac"):
         _pid_file(settings).unlink(missing_ok=True)
         _json({"status": "stopped"})
     else:
-        raise typer.BadParameter("Choose mac or linux; remote worker uses Docker over SSH")
+        raise typer.BadParameter("Choose mac, linux or remote")
 
 
 @app.command()

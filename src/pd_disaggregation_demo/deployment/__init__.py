@@ -9,6 +9,7 @@ from .operations import (
     serve_linux,
     status_linux,
     stop_linux,
+    stop_remote,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "serve_linux",
     "status_linux",
     "stop_linux",
+    "stop_remote",
 ]
