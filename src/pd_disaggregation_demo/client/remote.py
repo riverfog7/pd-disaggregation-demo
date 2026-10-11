@@ -21,6 +21,7 @@ class RemoteWorker:
             trust_env=False,
         )
         self.profile: RuntimeProfile | None = None
+        self.effective_settings: dict = {}
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -52,6 +53,10 @@ class RemoteWorker:
         )
         if desired != current or health.get("status") != "ready":
             await self._json("POST", "/configure", desired.model_dump())
+            health = await self.health()
+        engine = health.get("engine", health)
+        effective = engine.get("effective_settings")
+        self.effective_settings = effective if isinstance(effective, dict) else {}
         self.profile = desired
         return desired
 

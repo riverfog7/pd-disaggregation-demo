@@ -59,6 +59,8 @@ class LlamaRuntime:
         self._admission = None
         self.startup_ms = 0.0
         self._peak_memory: dict = {}
+        self._native_props: dict | None = None
+        self._effective_settings: dict | None = None
 
     def _arguments(self, binary: Path, model_path: Path) -> list[str]:
         p = self.profile
@@ -172,6 +174,7 @@ class LlamaRuntime:
                 try:
                     response = await self._client.get("/health", timeout=1)
                     if response.status_code == 200:
+                        await self._capture_native_props()
                         self.startup_ms = elapsed_ms(started)
                         return
                 except httpx.HTTPError:
@@ -195,6 +198,8 @@ class LlamaRuntime:
                 self._process.kill()
                 await self._process.wait()
         self._process = None
+        self._native_props = None
+        self._effective_settings = None
         if self._log:
             self._log.close()
             self._log = None
@@ -221,6 +226,47 @@ class LlamaRuntime:
                             f"Configuration failed ({rejected}); prior runtime restart also failed"
                         ) from rollback
                 raise
+
+    async def _capture_native_props(self) -> None:
+        response = await self._http().get("/props")
+        response.raise_for_status()
+        props = response.json()
+        defaults = props.get("default_generation_settings", {})
+        actual_context = defaults.get("n_ctx")
+        slots = props.get("total_slots")
+        if slots is not None and slots != 1:
+            raise RuntimeError(f"Native engine exposes {slots} slots; exactly one is required")
+        if isinstance(actual_context, int) and actual_context < self.profile.context_size:
+            raise RuntimeError(
+                f"Native context {actual_context} is smaller than requested "
+                f"{self.profile.context_size}"
+            )
+        self._native_props = {
+            key: props[key]
+            for key in (
+                "default_generation_settings",
+                "total_slots",
+                "model_alias",
+                "model_ftype",
+                "model_path",
+                "modalities",
+                "build_info",
+                "endpoint_slots",
+            )
+            if key in props
+        }
+        # This pinned API reports context and slots, but omits batch/cache types.
+        # Preserve unknown values rather than relabeling requested flags as measurements.
+        self._effective_settings = {
+            "observed_from": "native /props",
+            "effective_n_ctx": actual_context,
+            "total_slots": slots,
+            "effective_n_batch": props.get("n_batch", defaults.get("n_batch")),
+            "effective_n_ubatch": props.get("n_ubatch", defaults.get("n_ubatch")),
+            "cache_type_k": props.get("cache_type_k", defaults.get("cache_type_k")),
+            "cache_type_v": props.get("cache_type_v", defaults.get("cache_type_v")),
+            "build_info": props.get("build_info"),
+        }
 
     async def _snapshot(self) -> dict:
         from ..resources import capture_resources
@@ -253,6 +299,8 @@ class LlamaRuntime:
             "engine_revision": self.settings.engine_revision,
             "startup_ms": self.startup_ms,
             "native_exit_code": self._process.returncode if self._process else None,
+            "native_props": self._native_props,
+            "effective_settings": self._effective_settings,
             "admission": self._admission.model_dump(mode="json") if self._admission else None,
             "native": native,
             "resources": await self._snapshot(),
@@ -609,5 +657,6 @@ class LlamaRuntime:
             metrics=metrics,
             fingerprint=self.fingerprint,
             local_profile=self.profile,
+            effective_settings={"local": self._effective_settings or {}},
         )
         yield GenerationEvent(kind="result", result=result, elapsed_ms=metrics.total_ms)

@@ -321,6 +321,7 @@ async def test_split_preserves_canonical_tokens_and_reports_client_ttft(native):
     health = {
         "status": "ready",
         "profile": pipeline.remote.profile.model_dump(),
+        "engine": {"effective_settings": {"effective_n_ctx": 8192, "total_slots": 1}},
     }
 
     async def worker(request):
@@ -359,6 +360,8 @@ async def test_split_preserves_canonical_tokens_and_reports_client_ttft(native):
     assert result.metrics.transfer_mbps > 0
     assert result.remote_profile.gpu_layers == 12
     assert result.remote_profile.cpu_ffn == 8
+    assert result.effective_settings["remote"]["effective_n_ctx"] == 8192
+    assert result.effective_settings["local"] == {}
     assert result.metrics.memory["remote_prefill_peak"]["gpu_used_max_bytes"] == 1024**3
     assert result.metrics.memory["remote_prefill_peak"]["sample_count"] == 2
     assert result.metrics.memory["before"]["ram_available_bytes"] == 1024**3
@@ -568,3 +571,76 @@ async def test_exited_owned_process_refuses_requests_and_skips_erase(native):
     assert server.calls == []
     assert not runtime._lock.locked()
     runtime._process = None
+
+
+async def test_effective_props_accept_context_rounding_and_leave_unobserved_types_unknown(native):
+    runtime, _ = native
+    props = {
+        "default_generation_settings": {"n_ctx": 8448},
+        "total_slots": 1,
+        "build_info": "b11552-23b0202a1",
+        "model_ftype": "Q4_K - Medium",
+    }
+    await runtime._client.aclose()
+    runtime._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=props)),
+        base_url="http://native",
+    )
+    await runtime._capture_native_props()
+    assert runtime._effective_settings["effective_n_ctx"] == 8448
+    assert runtime._effective_settings["cache_type_k"] is None
+    assert runtime._effective_settings["effective_n_batch"] is None
+    assert runtime._native_props["build_info"] == "b11552-23b0202a1"
+
+
+@pytest.mark.parametrize("context,slots", [(8191, 1), (8192, 2)])
+async def test_incompatible_effective_props_rejected(native, context, slots):
+    runtime, _ = native
+    await runtime._client.aclose()
+    runtime._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "default_generation_settings": {"n_ctx": context},
+                    "total_slots": slots,
+                },
+            )
+        ),
+        base_url="http://native",
+    )
+    with pytest.raises(RuntimeError, match="Native"):
+        await runtime._capture_native_props()
+
+
+async def test_remote_effective_metadata_refreshed_only_after_configure(tmp_path):
+    remote = RemoteWorker(Settings(work_dir=tmp_path))
+    await remote._client.aclose()
+    calls = []
+    profile = RuntimeProfile(context_size=8192)
+    current = profile.model_copy(update={"context_size": 4096})
+
+    async def handler(request):
+        nonlocal current
+        calls.append((request.method, request.url.path))
+        if request.url.path == "/configure":
+            current = RuntimeProfile.model_validate_json(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "status": "ready",
+                "profile": current.model_dump(),
+                "engine": {"effective_settings": {"effective_n_ctx": current.context_size}},
+            },
+        )
+
+    remote._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), base_url="http://worker"
+    )
+    await remote.configure_matching(profile)
+    assert calls == [("GET", "/health"), ("POST", "/configure"), ("GET", "/health")]
+    assert remote.effective_settings["effective_n_ctx"] == 8192
+    calls.clear()
+    await remote.configure_matching(profile)
+    assert calls == [("GET", "/health")]
+    await remote.close()

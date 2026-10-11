@@ -156,6 +156,7 @@ class GenerationResult(Schema):
     fingerprint: RuntimeFingerprint | None = None
     local_profile: RuntimeProfile | None = None
     remote_profile: RuntimeProfile | None = None
+    effective_settings: dict[str, Any] = Field(default_factory=dict)
     success: bool = True
     error: str | None = None
 

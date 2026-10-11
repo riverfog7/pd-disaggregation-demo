@@ -181,6 +181,7 @@ class Pipeline:
                             result = event.result
                             result.mode = "split"
                             result.remote_profile = self.remote.profile
+                            result.effective_settings["remote"] = self.remote.effective_settings
                             metrics = result.metrics
                             metrics.ttft_ms = first_token_ms
                             metrics.tokenize_ms = tokenize_ms
