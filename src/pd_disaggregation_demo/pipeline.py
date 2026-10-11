@@ -5,6 +5,8 @@ import contextlib
 import time
 from collections.abc import AsyncGenerator
 
+import anyio
+
 from .artifacts import delete_artifact
 from .client.remote import RemoteWorker
 from .config.settings import Settings
@@ -101,22 +103,28 @@ class Pipeline:
             manifest = await self.remote.prefill(tokens)
             artifact, transfer_ms = await self.remote.download(manifest, self.fingerprint)
         except BaseException as error:
-            with contextlib.suppress(Exception):
-                await self.remote.cancel()
-            if manifest is not None:
-                try:
-                    await self.remote.delete(manifest.artifact_id)
-                except Exception as cleanup_error:
-                    # An unavailable worker or a stream still closing must not turn
-                    # cancellation into an operational error or hide transfer failure.
-                    error.add_note(f"Remote artifact cleanup failed: {cleanup_error}")
+            # HTTP disconnects use an AnyIO cancellation scope which otherwise
+            # cancels every await, including the worker's cancellation request.
+            with anyio.move_on_after(
+                min(10, self.settings.request_timeout), shield=True
+            ) as cleanup:
+                with contextlib.suppress(Exception):
+                    await self.remote.cancel()
+                if manifest is not None:
+                    try:
+                        await self.remote.delete(manifest.artifact_id)
+                    except Exception as cleanup_error:
+                        error.add_note(f"Remote artifact cleanup failed: {cleanup_error}")
+            if cleanup.cancel_called:
+                error.add_note("Remote request cleanup exceeded its ten-second deadline")
             raise
         else:
             try:
-                await self.remote.delete(manifest.artifact_id)
+                with anyio.fail_after(min(10, self.settings.request_timeout), shield=True):
+                    await self.remote.delete(manifest.artifact_id)
             except BaseException:
                 # Until remote cleanup succeeds, the caller does not own this artifact.
-                await asyncio.to_thread(delete_artifact, artifact)
+                delete_artifact(artifact)
                 raise
             return artifact, transfer_ms
         finally:
@@ -219,4 +227,5 @@ class Pipeline:
                         yield event
             finally:
                 if artifact:
-                    await asyncio.to_thread(delete_artifact, artifact)
+                    with anyio.move_on_after(10, shield=True):
+                        await asyncio.to_thread(delete_artifact, artifact)

@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 
+import anyio
 import httpx
 import pytest
 
@@ -793,7 +794,8 @@ async def remote_transfer(tmp_path):
                 raise httpx.ReadError("original transfer interrupted")
             yield chunk
 
-    def handler(request):
+    async def handler(request):
+        await asyncio.sleep(0)
         behavior["calls"].append((request.method, request.url.path))
         if request.url.path == "/health":
             return httpx.Response(
@@ -873,3 +875,106 @@ async def test_remote_cleanup_uses_short_control_timeouts(tmp_path):
         assert calls == [("/cancel", 10), (f"/artifacts/{'a' * 32}", 10), ("/prefill", 1200)]
     finally:
         await remote.close()
+
+
+async def test_http_disconnect_cancel_scope_finishes_remote_cleanup(remote_transfer):
+    pipeline, manifest, behavior, started, _ = remote_transfer
+    behavior["failure"] = "cancel"
+    scope_holder = []
+
+    async def disconnecting_request():
+        with anyio.CancelScope() as scope:
+            scope_holder.append(scope)
+            await pipeline.prefill(PrefillRequest(token_ids=[1, 2], backend="remote"))
+
+    task = asyncio.create_task(disconnecting_request())
+    await started.wait()
+    scope_holder[0].cancel()
+    await asyncio.wait_for(task, 1)
+    assert ("POST", "/cancel") in behavior["calls"]
+    assert ("DELETE", f"/artifacts/{manifest.artifact_id}") in behavior["calls"]
+    assert not (pipeline.settings.artifacts_dir / manifest.artifact_id).exists()
+    assert not pipeline._remote_active
+    assert not pipeline._lock.locked()
+
+
+async def test_http_disconnect_cancel_scope_finishes_native_erase(native):
+    runtime, server = native
+    started = asyncio.Event()
+    original_erase = runtime._erase
+
+    async def erase():
+        await asyncio.sleep(0)  # A cancelled AnyIO scope cancels each cleanup await.
+        await original_erase()
+
+    async def blocked(request):
+        if request.url.path == "/completion":
+            started.set()
+            await asyncio.Event().wait()
+        return await server.handle(request)
+
+    runtime._erase = erase
+    await runtime._client.aclose()
+    runtime._client = httpx.AsyncClient(
+        transport=httpx.MockTransport(blocked), base_url="http://native"
+    )
+    scope_holder = []
+
+    async def disconnecting_request():
+        with anyio.CancelScope() as scope:
+            scope_holder.append(scope)
+            _ = [event async for event in runtime.generate(GenerationRequest(token_ids=[1, 2]))]
+
+    task = asyncio.create_task(disconnecting_request())
+    await started.wait()
+    scope_holder[0].cancel()
+    await asyncio.wait_for(task, 1)
+    erases = [query for _, query, _ in server.calls if query == "action=erase"]
+    assert len(erases) == 2  # Initial erase and erase after disconnect.
+    assert not runtime._lock.locked()
+    assert runtime._active is None
+
+
+async def test_remote_disconnect_cleanup_deadline_preserves_cancellation(remote_transfer):
+    pipeline, manifest, behavior, started, _ = remote_transfer
+    pipeline.settings.request_timeout = 0.02
+    behavior["failure"] = "cancel"
+    cleanup_started = asyncio.Event()
+
+    async def stalled_cancel():
+        cleanup_started.set()
+        await asyncio.Event().wait()
+
+    pipeline.remote.cancel = stalled_cancel
+    task = asyncio.create_task(pipeline.prefill(PrefillRequest(token_ids=[1, 2], backend="remote")))
+    await started.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError) as caught:
+        await asyncio.wait_for(task, 1)
+    assert cleanup_started.is_set()
+    assert any("deadline" in note for note in caught.value.__notes__)
+    assert not (pipeline.settings.artifacts_dir / manifest.artifact_id).exists()
+    assert not pipeline._lock.locked()
+
+
+@pytest.mark.parametrize("primary", [asyncio.CancelledError, RuntimeError])
+async def test_native_cleanup_deadline_preserves_primary_failure(native, primary):
+    runtime, _ = native
+    runtime.settings.request_timeout = 0.02
+
+    async def stalled_erase():
+        await asyncio.Event().wait()
+
+    runtime._erase = stalled_erase
+
+    async def request():
+        async with runtime._slot():
+            raise primary("original request failure")
+
+    with pytest.raises(primary, match="original request failure") as caught:
+        await asyncio.wait_for(request(), 1)
+    assert any(
+        "Native slot cleanup failed: TimeoutError" in note for note in caught.value.__notes__
+    )
+    assert not runtime._lock.locked()
+    assert runtime._active is None

@@ -11,6 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
+import anyio
 import httpx
 import psutil
 
@@ -384,20 +385,33 @@ class LlamaRuntime:
             self._active = asyncio.current_task()
             self._peak_memory = {"sample_period_ms": 100, "sample_count": 0}
             monitor = None
+            failure = None
             try:
                 await self._sample_peak()
                 monitor = asyncio.create_task(self._monitor_memory())
                 yield
+            except BaseException as error:
+                failure = error
+                raise
             finally:
                 # Close native streams before erase so cancellation releases the slot.
-                try:
-                    await self._erase()
-                finally:
-                    if monitor:
-                        monitor.cancel()
-                        with contextlib.suppress(asyncio.CancelledError):
-                            await monitor
-                    self._active = None
+                with anyio.CancelScope(shield=True):
+                    try:
+                        with anyio.fail_after(min(10, self.settings.request_timeout)):
+                            await self._erase()
+                    except Exception as cleanup_error:
+                        if failure is None:
+                            raise
+                        failure.add_note(
+                            f"Native slot cleanup failed: {type(cleanup_error).__name__}: "
+                            f"{cleanup_error}"
+                        )
+                    finally:
+                        if monitor:
+                            monitor.cancel()
+                            with contextlib.suppress(asyncio.CancelledError):
+                                await monitor
+                        self._active = None
 
     def _check_context(self, tokens: list[int], output: int = 1) -> None:
         if not tokens or any(type(token) is not int or token < 0 for token in tokens):
