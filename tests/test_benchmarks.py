@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import csv
+import time
 from pathlib import Path
 
 import pytest
@@ -460,3 +461,55 @@ async def test_cancellation_closes_native_stream_before_releasing_session(tmp_pa
     assert report.status == "cancelled"
     assert pipeline.stream_closed
     assert pipeline.session_owner is None
+
+
+async def test_slow_consumer_cannot_pause_timed_native_stages(tmp_path):
+    class FakeTimedPipeline(FakePipeline):
+        in_timed_request = False
+
+        async def generate(self, request):
+            self.in_timed_request = True
+            start = time.perf_counter()
+            try:
+                yield GenerationEvent(kind="stage", stage="prefill", elapsed_ms=0)
+                await asyncio.sleep(0.002)
+                yield GenerationEvent(
+                    kind="stage",
+                    stage="restore",
+                    elapsed_ms=2,
+                    data={"source": "actual fake stage"},
+                )
+                await asyncio.sleep(0.002)
+                # Measure elapsed wall time across both native stage yields. A forwarding
+                # harness would include each slow consumer delay in the reported TTFT.
+                ttft_ms = (time.perf_counter() - start) * 1000
+                async for event in super().generate(request):
+                    if event.result:
+                        event.result.metrics.ttft_ms = ttft_ms
+                        yield event
+            finally:
+                self.in_timed_request = False
+
+    pipeline = FakeTimedPipeline()
+    config = BenchmarkConfig(
+        prompt_sizes=[256], output_tokens=4, repeats=1, warmup=False, bootstrap_samples=100
+    )
+    consumer_delay = 0.08
+    consumer_observed_timed_work = []
+    observed_kinds = []
+    report = None
+    async for event in run_benchmark(pipeline, config, settings(tmp_path)):
+        observed_kinds.append(event.kind)
+        consumer_observed_timed_work.append(pipeline.in_timed_request)
+        report = event.report
+        await asyncio.sleep(consumer_delay)
+    assert report.status == "completed"
+    assert len(report.samples) == 2
+    assert all(sample.result.metrics.ttft_ms < consumer_delay * 1000 for sample in report.samples)
+    assert not any(consumer_observed_timed_work)
+    assert "stage" not in observed_kinds
+    stages = report.environment["measured_stage_events"]
+    assert [stage["stage"] for stage in stages] == ["prefill", "restore", "prefill", "restore"]
+    assert stages[1]["elapsed_ms"] == 2
+    assert stages[1]["data"] == {"source": "actual fake stage"}
+    assert any("Dashboard phase updates occur after each sample" in note for note in report.notes)

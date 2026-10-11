@@ -114,6 +114,8 @@ async def _run_benchmark(
 
     Native runtime TTFT is authoritative; timings are never reconstructed from stage estimates.
     Cancellation via an event is checked before requests, and Pipeline.cancel interrupts active IO.
+    Phase updates reach the dashboard after each sample, so consumer rendering cannot pause a
+    timed native request. Progress is emitted before dispatch and after completion.
     """
     report = BenchmarkReport(
         config=config,
@@ -125,6 +127,7 @@ async def _run_benchmark(
             "remote_url": settings.remote_url,
             "configurations": [],
             "prompt_sha256": {},
+            "measured_stage_events": [],
         },
     )
 
@@ -132,6 +135,9 @@ async def _run_benchmark(
         return cancel_event is not None and cancel_event.is_set()
 
     active_request = {}
+    report.notes.append(
+        "Dashboard phase updates occur after each sample to keep rendering outside timed requests."
+    )
     if not config.warmup:
         report.notes[0] = (
             "Warmup disabled; first measured requests may include cold-weight overhead."
@@ -260,15 +266,16 @@ async def _run_benchmark(
                             if cancelled():
                                 raise asyncio.CancelledError()
                             if event.kind == "stage":
-                                yield BenchmarkEvent(
-                                    kind="stage",
-                                    stage=event.stage,
-                                    mode=mode,
-                                    repeat=repeat,
-                                    prompt_tokens=size,
-                                    data=event.data,
-                                    message=event.stage,
-                                    report=report,
+                                # Yielding here would suspend native work while UI charts render.
+                                report.environment["measured_stage_events"].append(
+                                    {
+                                        "prompt_tokens": size,
+                                        "repeat": repeat,
+                                        "mode": mode,
+                                        "stage": event.stage,
+                                        "elapsed_ms": event.elapsed_ms,
+                                        "data": event.data,
+                                    }
                                 )
                             elif event.kind == "error":
                                 raise RuntimeError(event.text or str(event.data))
