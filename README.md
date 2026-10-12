@@ -103,7 +103,26 @@ Results also include an explicitly modeled **ideal 1Gbps** comparison: `measured
 
 Reports are saved under `.pd-demo/reports/` as JSON, CSV and standalone HTML with embedded Plotly. The dashboard supports history comparison and downloads. Selecting saved runs also shows the most recent selected run’s exact stage table, whole-request timeline, and ideal 1Gbps projection. Keep large reports outside Git; `reports/` contains compact acceptance and benchmark evidence.
 
-## Recorded 4B comparison
+## Recorded 4B 65k comparison
+
+The [65,535-token experiment](reports/benchmark-4b-65k-2026-10-12.json) completed **four alternating local/split pairs** with Q4_K_M weights, Q8 cache, FlashAttention and 128 generated tokens. Both engines used microbatch 2,048, logical batch 65,535 and four CPU threads; requested context was 65,663, rounded natively to 65,792. Every request passed its exact token/cache boundary checks, and all eight continuations matched in this fixture. The 32-token warmup was separate; this was not a full-length warmup or a cold-disk test.
+
+| Metric (median) | Mac local | CUDA prefill → Mac decode |
+|---|---:|---:|
+| TTFT | 386.08 s | 151.12 s |
+| Native prefill throughput | 169.8 tokens/s | 1,727.8 tokens/s |
+| Native decode throughput | 19.08 tokens/s | 17.89 tokens/s |
+| State transfer | — | 1.195 GB in 105.87 s |
+
+The measured paired TTFT speedup was **2.522× (95% paired bootstrap interval 2.462–2.578×)** on the existing `gpu_home` SSH route. This supports a win for this four-pair experiment, not a universal speedup or reliable tail-latency estimate. Split prefill took a median 37.96 seconds, state export 3.17 seconds, and restore 0.37 seconds. Transfer remained the largest cost, at a median 90.33 Mbit/s. Stage medians are descriptive; the UI's exact-pair table provides additive timing accounting. Decode still ran on the Mac and did not improve.
+
+The separate [bidirectional link probe](reports/link-throughput-2026-10-12.json) used three verified 64 MiB transfers each way: median **73.50 Mbit/s (9.19 MB/s) GPU host → Mac**, and **177.27 Mbit/s (22.16 MB/s) Mac → GPU host**. These wall rates include fresh SSH setup and hashing, not only physical network transfer. The actual larger state transfer amortized that setup. Replacing only the measured state-transfer time with ideal 1Gbps payload time gives a **modeled 54.78-second split TTFT and 6.972× paired speedup**; this is not a measured gigabit LAN result.
+
+The guarded CUDA container had a 10.25 GiB RAM cap and no swap, with at least **3.04 GiB GPU free** and **11.54 GiB host MemAvailable** observed. No cgroup OOM or watchdog failure occurred. Mac admission was explicitly waived for this run. The user shortened the original five-pair run to four complete pairs; the runner's raw cancellation record and next-dispatch cancellation are retained separately, and no fifth-pair timing is included. The requested 27B paired run was not started after the user limited scope to 4B.
+
+Use the [long-context guide](docs/long-context-benchmarks.md) to reproduce the setup. The History tab lists this run as `a148fe49`; full JSON, CSV and standalone HTML, including the stage table and all eight timelines, are under `.pd-demo/reports/`. Normal 4B services were restored after measurement.
+
+## Earlier 4B 1k–8k comparison
 
 The [2026-10-12 rerun](reports/benchmark-4b-q8-rerun-2026-10-12.json) uses the same canonical prompts as the [original run](reports/benchmark-4b-q8-current-route.json): Qwen3.5-4B Q4_K_M, Q8 cache, 128 output tokens and five alternating pairs per size. All 30 requests passed native cache-boundary and token-count checks. Times below are medians; ratios are paired geometric means and need not equal the ratio of those medians.
 
@@ -187,7 +206,7 @@ uv run python scripts/validate_handoff.py --engine-port 8181 \
 
 Benchmarks use the current SSH route and report its observed state-transfer throughput. The 1Gbps model lets you compare the same measurements under an ideal link assumption without presenting that assumption as a measured LAN speedup.
 
-The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 317 automated tests pass. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware; 27B CUDA prefill/export is calibrated as described above, while its cross-machine TTFT remains unmeasured. The 1Gbps comparison remains a model.
+The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 344 automated tests pass at the long-context measurement revision; focused benchmark checks also cover the subsequent timeline layout adjustment. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware; 27B CUDA prefill/export is calibrated as described above, while its cross-machine TTFT remains unmeasured. The 1Gbps comparison remains a model.
 
 ## Layout and source workflow
 

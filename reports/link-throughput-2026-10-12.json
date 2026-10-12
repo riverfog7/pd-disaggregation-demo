@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "host_alias": "gpu_home",
+  "started_at": "2026-10-12T07:33:59.833619+00:00",
+  "status": "completed",
+  "parameters": {
+    "bytes_per_transfer": 67108864,
+    "repeats": 3,
+    "timeout_per_command_s": 120.0,
+    "chunk_bytes": 262144
+  },
+  "provenance": {
+    "transport": "SSH with fresh connection per command",
+    "ssh_options": [
+      "-T",
+      "-o",
+      "BatchMode=yes",
+      "-o",
+      "ConnectTimeout=10",
+      "-o",
+      "Compression=no",
+      "-o",
+      "ControlMaster=no",
+      "-o",
+      "ControlPath=none",
+      "-o",
+      "ControlPersist=no",
+      "-o",
+      "ForwardAgent=no",
+      "-o",
+      "ClearAllForwardings=yes"
+    ],
+    "local_system": "Darwin",
+    "local_python_version": "3.13.2",
+    "payload": "repeated deterministic SHAKE-256 pseudorandom block",
+    "verification": "exact byte counts and SHA-256 at both endpoints",
+    "rate_units": "decimal Mbps and MB/s",
+    "duration_scope": "local monotonic wall time including SSH setup and verification",
+    "latency_scope": "SSH command wall latency including setup; not ICMP RTT",
+    "remote_duration_scope": "Python stream loop including SHA-256; excludes SSH setup",
+    "local_byte_scope": "download: read locally; upload: accepted by local SSH stdin",
+    "remote_source_mode": "git-deployed module",
+    "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+    "expected_remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a"
+  },
+  "latency_samples": [
+    {
+      "sample": 1,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 1.516694916994311
+    },
+    {
+      "sample": 2,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 1.3704299999953946
+    },
+    {
+      "sample": 3,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 1.4278916659968672
+    }
+  ],
+  "transfers": [
+    {
+      "repeat": 1,
+      "direction": "download",
+      "requested_bytes": 67108864,
+      "local_bytes": 67108864,
+      "remote_bytes": 67108864,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 7.004564125003526,
+      "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "remote_stream_duration_s": 5.550953272962943,
+      "remote_python_version": "3.12.3",
+      "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+      "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+      "local_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "verified": true,
+      "Mbps": 76.64587009541151,
+      "MBps": 9.580733761926439
+    },
+    {
+      "repeat": 1,
+      "direction": "upload",
+      "requested_bytes": 67108864,
+      "local_bytes": 67108864,
+      "remote_bytes": 67108864,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 3.0285205830004998,
+      "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "remote_stream_duration_s": 1.440070206997916,
+      "remote_python_version": "3.12.3",
+      "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+      "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+      "verified": true,
+      "Mbps": 177.27167350736522,
+      "MBps": 22.158959188420653
+    },
+    {
+      "repeat": 2,
+      "direction": "download",
+      "requested_bytes": 67108864,
+      "local_bytes": 67108864,
+      "remote_bytes": 67108864,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 7.652812000000267,
+      "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "remote_stream_duration_s": 5.928700637072325,
+      "remote_python_version": "3.12.3",
+      "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+      "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+      "local_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "verified": true,
+      "Mbps": 70.15341707074226,
+      "MBps": 8.769177133842783
+    },
+    {
+      "repeat": 2,
+      "direction": "upload",
+      "requested_bytes": 67108864,
+      "local_bytes": 67108864,
+      "remote_bytes": 67108864,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 2.8939954999950714,
+      "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "remote_stream_duration_s": 1.399837497039698,
+      "remote_python_version": "3.12.3",
+      "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+      "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+      "verified": true,
+      "Mbps": 185.51200649790727,
+      "MBps": 23.189000812238408
+    },
+    {
+      "repeat": 3,
+      "direction": "download",
+      "requested_bytes": 67108864,
+      "local_bytes": 67108864,
+      "remote_bytes": 67108864,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 7.303925582993543,
+      "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "remote_stream_duration_s": 5.651516965939663,
+      "remote_python_version": "3.12.3",
+      "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+      "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+      "local_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "verified": true,
+      "Mbps": 73.50443345836518,
+      "MBps": 9.188054182295648
+    },
+    {
+      "repeat": 3,
+      "direction": "upload",
+      "requested_bytes": 67108864,
+      "local_bytes": 67108864,
+      "remote_bytes": 67108864,
+      "status": "completed",
+      "ssh_returncode": 0,
+      "duration_s": 3.2807484160002787,
+      "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "remote_stream_duration_s": 1.7013423289172351,
+      "remote_python_version": "3.12.3",
+      "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+      "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+      "verified": true,
+      "Mbps": 163.64281679804196,
+      "MBps": 20.455352099755245
+    }
+  ],
+  "expected_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+  "summary": {
+    "ssh_command_latency": {
+      "successful_samples": 3,
+      "median_ms": 1427.8916659968672
+    },
+    "download": {
+      "successful_samples": 3,
+      "median_Mbps": 73.50443345836518,
+      "median_MBps": 9.188054182295648
+    },
+    "upload": {
+      "successful_samples": 3,
+      "median_Mbps": 177.27167350736522,
+      "median_MBps": 22.158959188420653
+    }
+  },
+  "finished_at": "2026-10-12T07:34:35.355819+00:00",
+  "measurement_note": "Fresh SSH setup and Python hashing included; not raw physical-link capacity. A brief local automated-test run overlapped part of this probe; application state transfer was measured separately during inference comparisons."
+}

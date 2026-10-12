@@ -1,0 +1,3026 @@
+{
+  "schema_version": 1,
+  "run_id": "a148fe4978004082814fc472e00bb8bc",
+  "created_at": "2026-10-12T07:38:08.986512Z",
+  "finished_at": "2026-10-12T08:14:59.512060Z",
+  "status": "completed",
+  "config": {
+    "profile": {
+      "model_id": "qwen3.5-4b",
+      "cache_type": "q8_0",
+      "context_size": 65663,
+      "batch_size": 65535,
+      "ubatch_size": 2048,
+      "gpu_layers": -1,
+      "cpu_ffn": 0,
+      "threads": 4
+    },
+    "prompt_sizes": [
+      65535
+    ],
+    "output_tokens": 128,
+    "repeats": 4,
+    "warmup": true,
+    "seed": 0,
+    "bootstrap_samples": 10000,
+    "label": "Qwen3.5-4B \u00b7 65,535 tokens \u00b7 four pairs \u00b7 2026-10-12"
+  },
+  "environment": {
+    "platform": "macOS-27.2-arm64-arm-64bit-Mach-O",
+    "python": "3.13.2 (main, Mar 17 2025, 21:26:38) [Clang 20.1.0 ]",
+    "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+    "git_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+    "remote_url": "http://127.0.0.1:8090",
+    "configurations": [
+      {
+        "prompt_tokens": 65535,
+        "profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "startup_ms": 2351.300499998615,
+        "corpus_tokenize_ms": 87.18291700643022
+      }
+    ],
+    "prompt_sha256": {
+      "65535": "c47ac98fc54b1283cf5f593f4de57dbb7cdf23423d4857032cf21ac4ef25d045"
+    },
+    "measured_stage_events": [
+      {
+        "prompt_tokens": 65535,
+        "repeat": 0,
+        "mode": "local",
+        "stage": "prefill",
+        "elapsed_ms": 0,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 0,
+        "mode": "split",
+        "stage": "remote_prefill",
+        "elapsed_ms": 0.0037080026231706142,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 0,
+        "mode": "split",
+        "stage": "transfer",
+        "elapsed_ms": 150679.69691699545,
+        "data": {
+          "state_bytes": 1195342608,
+          "transfer_ms": 106519.9044579931
+        }
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 0,
+        "mode": "split",
+        "stage": "restore",
+        "elapsed_ms": 151839.13283300353,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 0,
+        "mode": "split",
+        "stage": "decode",
+        "elapsed_ms": 151839.14508299495,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 1,
+        "mode": "split",
+        "stage": "remote_prefill",
+        "elapsed_ms": 0.001958003849722445,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 1,
+        "mode": "split",
+        "stage": "transfer",
+        "elapsed_ms": 148242.32454200683,
+        "data": {
+          "state_bytes": 1195342608,
+          "transfer_ms": 104111.79591600376
+        }
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 1,
+        "mode": "split",
+        "stage": "restore",
+        "elapsed_ms": 149263.9445829991,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 1,
+        "mode": "split",
+        "stage": "decode",
+        "elapsed_ms": 149263.95541700185,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 1,
+        "mode": "local",
+        "stage": "prefill",
+        "elapsed_ms": 0,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 2,
+        "mode": "local",
+        "stage": "prefill",
+        "elapsed_ms": 0,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 2,
+        "mode": "split",
+        "stage": "remote_prefill",
+        "elapsed_ms": 0.0017080019460991025,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 2,
+        "mode": "split",
+        "stage": "transfer",
+        "elapsed_ms": 153226.42983299738,
+        "data": {
+          "state_bytes": 1195342608,
+          "transfer_ms": 109123.2913749991
+        }
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 2,
+        "mode": "split",
+        "stage": "restore",
+        "elapsed_ms": 154290.01879099815,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 2,
+        "mode": "split",
+        "stage": "decode",
+        "elapsed_ms": 154290.02883299836,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 3,
+        "mode": "split",
+        "stage": "remote_prefill",
+        "elapsed_ms": 0.00145800004247576,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 3,
+        "mode": "split",
+        "stage": "transfer",
+        "elapsed_ms": 149226.55249999661,
+        "data": {
+          "state_bytes": 1195342608,
+          "transfer_ms": 105216.62991700578
+        }
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 3,
+        "mode": "split",
+        "stage": "restore",
+        "elapsed_ms": 150261.30979099253,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 3,
+        "mode": "split",
+        "stage": "decode",
+        "elapsed_ms": 150261.32099999813,
+        "data": {}
+      },
+      {
+        "prompt_tokens": 65535,
+        "repeat": 3,
+        "mode": "local",
+        "stage": "prefill",
+        "elapsed_ms": 0,
+        "data": {}
+      }
+    ],
+    "health_before": {
+      "status": "stopped",
+      "backend": "metal",
+      "profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 65663,
+        "batch_size": 65535,
+        "ubatch_size": 2048,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "fingerprint": null,
+      "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+      "startup_ms": 0.0,
+      "restart_pending": false,
+      "native_exit_code": null,
+      "effective_settings": null,
+      "admission": null,
+      "native": null,
+      "resources": {
+        "timestamp": "2026-10-12T07:38:09.046570Z",
+        "platform": "darwin",
+        "cpu_count": 14,
+        "cpu_model": "Apple M4 Pro",
+        "ram_total_bytes": 51539607552,
+        "ram_available_bytes": 27991359488,
+        "swap_used_bytes": 1703936,
+        "disk_free_bytes": 134339182592,
+        "gpu_name": "Apple M4 Pro",
+        "gpu_total_bytes": null,
+        "gpu_free_bytes": null,
+        "gpu_used_bytes": null,
+        "process_rss_bytes": 71237632,
+        "metal_recommended_bytes": 40200896512,
+        "native_process_rss_bytes": 0
+      },
+      "local": {
+        "status": "stopped",
+        "backend": "metal",
+        "profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "fingerprint": null,
+        "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+        "startup_ms": 0.0,
+        "restart_pending": false,
+        "native_exit_code": null,
+        "effective_settings": null,
+        "admission": null,
+        "native": null,
+        "resources": {
+          "timestamp": "2026-10-12T07:38:09.046570Z",
+          "platform": "darwin",
+          "cpu_count": 14,
+          "cpu_model": "Apple M4 Pro",
+          "ram_total_bytes": 51539607552,
+          "ram_available_bytes": 27991359488,
+          "swap_used_bytes": 1703936,
+          "disk_free_bytes": 134339182592,
+          "gpu_name": "Apple M4 Pro",
+          "gpu_total_bytes": null,
+          "gpu_free_bytes": null,
+          "gpu_used_bytes": null,
+          "process_rss_bytes": 71237632,
+          "metal_recommended_bytes": 40200896512,
+          "native_process_rss_bytes": 0
+        }
+      },
+      "remote": {
+        "status": "unavailable",
+        "error": "Remote worker GET /health at http://127.0.0.1:8090 failed: ConnectError (All connection attempts failed). Check that the worker API is running and reachable; if using an SSH tunnel, verify its remote destination and worker port."
+      }
+    },
+    "metal_memory_overcommit": true,
+    "experiment_command": {
+      "model": "qwen3.5-4b",
+      "tokens": 65535,
+      "ubatch": 2048,
+      "threads": 4,
+      "output_tokens": 128,
+      "repeats": 5,
+      "timeout": 3600.0,
+      "engine_port": 8181,
+      "remote_url": "http://127.0.0.1:8090",
+      "ssh_host": "gpu_home",
+      "allow_metal_memory_overcommit": true,
+      "work_dir": ".pd-demo/long-context-20261012/4b-mac",
+      "output": ".pd-demo/long-context-20261012/4b-benchmark.json"
+    },
+    "health_after": {
+      "status": "ready",
+      "backend": "metal",
+      "profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 65663,
+        "batch_size": 65535,
+        "ubatch_size": 2048,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "fingerprint": {
+        "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+        "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+        "cache_type_k": "q8_0",
+        "cache_type_v": "q8_0",
+        "context_size": 65663,
+        "flash_attention": true,
+        "rope_settings": {},
+        "state_format_version": 1
+      },
+      "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+      "startup_ms": 2351.208542007953,
+      "restart_pending": false,
+      "native_exit_code": null,
+      "effective_settings": {
+        "observed_from": "native /props",
+        "effective_n_ctx": 65792,
+        "total_slots": 1,
+        "effective_n_batch": null,
+        "effective_n_ubatch": null,
+        "cache_type_k": null,
+        "cache_type_v": null,
+        "build_info": "b11552-23b0202a1"
+      },
+      "admission": {
+        "allowed": true,
+        "reasons": [],
+        "budgets": {
+          "weights_bytes": 3015031677,
+          "kv_bytes": 1143061504,
+          "state_bytes": 1195752448,
+          "compute_bytes": 1073741824,
+          "ram_required_bytes": 6748713853,
+          "gpu_required_bytes": 5284525949,
+          "disk_required_bytes": 5132442784,
+          "ram_reserve_bytes": 6442450944,
+          "gpu_reserve_bytes": 1073741824,
+          "disk_reserve_bytes": 21474836480,
+          "metal_memory_admission_overridden": 1
+        },
+        "resources": {
+          "timestamp": "2026-10-12T07:38:09.078488Z",
+          "platform": "darwin",
+          "cpu_count": 14,
+          "cpu_model": "Apple M4 Pro",
+          "ram_total_bytes": 51539607552,
+          "ram_available_bytes": 27985182720,
+          "swap_used_bytes": 1703936,
+          "disk_free_bytes": 134339158016,
+          "gpu_name": "Apple M4 Pro",
+          "gpu_total_bytes": null,
+          "gpu_free_bytes": null,
+          "gpu_used_bytes": null,
+          "process_rss_bytes": 79118336,
+          "metal_recommended_bytes": 40200896512
+        }
+      },
+      "native": {
+        "status": "ok"
+      },
+      "resources": {
+        "timestamp": "2026-10-12T08:14:59.653059Z",
+        "platform": "darwin",
+        "cpu_count": 14,
+        "cpu_model": "Apple M4 Pro",
+        "ram_total_bytes": 51539607552,
+        "ram_available_bytes": 22925459456,
+        "swap_used_bytes": 1703936,
+        "disk_free_bytes": 134290100224,
+        "gpu_name": "Apple M4 Pro",
+        "gpu_total_bytes": null,
+        "gpu_free_bytes": null,
+        "gpu_used_bytes": null,
+        "process_rss_bytes": 5112315904,
+        "metal_recommended_bytes": 40200896512,
+        "native_process_rss_bytes": 5005508608
+      },
+      "local": {
+        "status": "ready",
+        "backend": "metal",
+        "profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+        "startup_ms": 2351.208542007953,
+        "restart_pending": false,
+        "native_exit_code": null,
+        "effective_settings": {
+          "observed_from": "native /props",
+          "effective_n_ctx": 65792,
+          "total_slots": 1,
+          "effective_n_batch": null,
+          "effective_n_ubatch": null,
+          "cache_type_k": null,
+          "cache_type_v": null,
+          "build_info": "b11552-23b0202a1"
+        },
+        "admission": {
+          "allowed": true,
+          "reasons": [],
+          "budgets": {
+            "weights_bytes": 3015031677,
+            "kv_bytes": 1143061504,
+            "state_bytes": 1195752448,
+            "compute_bytes": 1073741824,
+            "ram_required_bytes": 6748713853,
+            "gpu_required_bytes": 5284525949,
+            "disk_required_bytes": 5132442784,
+            "ram_reserve_bytes": 6442450944,
+            "gpu_reserve_bytes": 1073741824,
+            "disk_reserve_bytes": 21474836480,
+            "metal_memory_admission_overridden": 1
+          },
+          "resources": {
+            "timestamp": "2026-10-12T07:38:09.078488Z",
+            "platform": "darwin",
+            "cpu_count": 14,
+            "cpu_model": "Apple M4 Pro",
+            "ram_total_bytes": 51539607552,
+            "ram_available_bytes": 27985182720,
+            "swap_used_bytes": 1703936,
+            "disk_free_bytes": 134339158016,
+            "gpu_name": "Apple M4 Pro",
+            "gpu_total_bytes": null,
+            "gpu_free_bytes": null,
+            "gpu_used_bytes": null,
+            "process_rss_bytes": 79118336,
+            "metal_recommended_bytes": 40200896512
+          }
+        },
+        "native": {
+          "status": "ok"
+        },
+        "resources": {
+          "timestamp": "2026-10-12T08:14:59.653059Z",
+          "platform": "darwin",
+          "cpu_count": 14,
+          "cpu_model": "Apple M4 Pro",
+          "ram_total_bytes": 51539607552,
+          "ram_available_bytes": 22925459456,
+          "swap_used_bytes": 1703936,
+          "disk_free_bytes": 134290100224,
+          "gpu_name": "Apple M4 Pro",
+          "gpu_total_bytes": null,
+          "gpu_free_bytes": null,
+          "gpu_used_bytes": null,
+          "process_rss_bytes": 5112315904,
+          "metal_recommended_bytes": 40200896512,
+          "native_process_rss_bytes": 5005508608
+        }
+      },
+      "remote": {
+        "status": "ready",
+        "engine": {
+          "status": "ready",
+          "backend": "cuda",
+          "profile": {
+            "model_id": "qwen3.5-4b",
+            "cache_type": "q8_0",
+            "context_size": 65663,
+            "batch_size": 65535,
+            "ubatch_size": 2048,
+            "gpu_layers": -1,
+            "cpu_ffn": 0,
+            "threads": 4
+          },
+          "fingerprint": {
+            "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+            "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+            "cache_type_k": "q8_0",
+            "cache_type_v": "q8_0",
+            "context_size": 65663,
+            "flash_attention": true,
+            "rope_settings": {},
+            "state_format_version": 1
+          },
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "startup_ms": 2077.9578019864857,
+          "restart_pending": false,
+          "native_exit_code": null,
+          "effective_settings": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b1-23b0202",
+            "native_log": {
+              "observed_from": "native log",
+              "effective_n_ctx": 65792,
+              "effective_n_batch": 65535,
+              "effective_n_ubatch": 2048,
+              "flash_attention": true
+            }
+          },
+          "admission": {
+            "allowed": true,
+            "reasons": [],
+            "budgets": {
+              "state_bytes": 1195752448
+            },
+            "resources": {
+              "timestamp": "2026-10-12T07:37:31.772724Z",
+              "platform": "linux",
+              "cpu_count": 6,
+              "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+              "ram_total_bytes": 16605392896,
+              "ram_available_bytes": 13444333568,
+              "swap_used_bytes": 3137339392,
+              "disk_free_bytes": 132714729472,
+              "gpu_name": "NVIDIA GeForce RTX 2080",
+              "gpu_total_bytes": 8589934592,
+              "gpu_free_bytes": 8157265920,
+              "gpu_used_bytes": 432668672,
+              "process_rss_bytes": 107667456,
+              "metal_recommended_bytes": null
+            }
+          },
+          "native": {
+            "status": "ok"
+          },
+          "resources": {
+            "timestamp": "2026-10-12T08:14:59.683482Z",
+            "platform": "linux",
+            "cpu_count": 6,
+            "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+            "ram_total_bytes": 16605392896,
+            "ram_available_bytes": 12527267840,
+            "swap_used_bytes": 3125231616,
+            "disk_free_bytes": 132562362368,
+            "gpu_name": "NVIDIA GeForce RTX 2080",
+            "gpu_total_bytes": 8589934592,
+            "gpu_free_bytes": 3268804608,
+            "gpu_used_bytes": 5321129984,
+            "process_rss_bytes": 1653202944,
+            "metal_recommended_bytes": null,
+            "native_process_rss_bytes": 1525735424
+          },
+          "calibration": {
+            "fixed_profile": {
+              "model_id": "qwen3.5-4b",
+              "cache_type": "q8_0",
+              "context_size": 65663,
+              "batch_size": 65535,
+              "ubatch_size": 2048,
+              "gpu_layers": -1,
+              "cpu_ffn": 0,
+              "threads": 4
+            },
+            "estimate": {
+              "host": {
+                "model_bytes": 522190848,
+                "context_bytes": 1048576,
+                "compute_bytes": 354418688,
+                "reported_mib": [
+                  497,
+                  0,
+                  337
+                ]
+              },
+              "devices": {
+                "CUDA0": {
+                  "model_bytes": 2730491904,
+                  "context_bytes": 1198522368,
+                  "compute_bytes": 791674880,
+                  "reported_mib": [
+                    2603,
+                    1142,
+                    754
+                  ]
+                }
+              },
+              "arguments": [
+                "/opt/llama/bin/pd-server-fit-params",
+                "--model",
+                "/data/cache/models/qwen3.5-4b/Qwen3.5-4B-Q4_K_M.gguf",
+                "--parallel",
+                "1",
+                "--ctx-size",
+                "65663",
+                "--batch-size",
+                "65535",
+                "--ubatch-size",
+                "2048",
+                "--threads",
+                "4",
+                "--threads-batch",
+                "4",
+                "--gpu-layers",
+                "-1",
+                "--n-cpu-ffn",
+                "0",
+                "--cache-type-k",
+                "q8_0",
+                "--cache-type-v",
+                "q8_0",
+                "--flash-attn",
+                "on",
+                "--fit",
+                "off",
+                "--op-offload",
+                "--no-repack",
+                "--no-host",
+                "--load-mode",
+                "mmap",
+                "--device",
+                "CUDA0",
+                "--spec-type",
+                "none",
+                "--fit-print",
+                "on"
+              ],
+              "stdout": "CUDA0 2603 1142 754 \nHost 497 0 337 \n",
+              "stderr": "PD_SERVER_FIT_PARAMS {\"kind\":\"server-context-v1\",\"engine_revision\":\"23b0202a189c44a54625aadcb37a946dd1d6278d\",\"linked_commit\":\"23b0202\",\"probe_source_sha256\":\"fc9b99018dec53779cef2f531bbae2813b4b0608f3d3c4fd22ab5745eb79d9ca\",\"parallel\":1,\"n_outputs_max\":1,\"n_outputs_max_per_seq\":1,\"n_rs_seq\":0,\"n_ctx\":65663,\"n_batch\":65535,\"n_ubatch\":2048,\"kv_unified\":false,\"offload_kqv\":true,\"op_offload\":true,\"flash_attn_type\":1}\n",
+              "provenance": {
+                "kind": "server-context-v1",
+                "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+                "linked_commit": "23b0202",
+                "probe_source_sha256": "fc9b99018dec53779cef2f531bbae2813b4b0608f3d3c4fd22ab5745eb79d9ca",
+                "parallel": 1,
+                "n_outputs_max": 1,
+                "n_outputs_max_per_seq": 1,
+                "n_rs_seq": 0,
+                "n_ctx": 65663,
+                "n_batch": 65535,
+                "n_ubatch": 2048,
+                "kv_unified": false,
+                "offload_kqv": true,
+                "op_offload": true,
+                "flash_attn_type": 1,
+                "binary": "/opt/llama/bin/pd-server-fit-params",
+                "estimate_scope": "No-allocation server scheduler reserved graph",
+                "runtime_resize_caveat": "Runtime chunk shapes can resize compute buffers beyond this estimate; driver cushions, live reserves and watchdog checks remain required"
+              }
+            },
+            "admission": {
+              "allowed": true,
+              "reasons": [],
+              "budgets": {
+                "native_host_total_bytes": 877658112,
+                "native_device_total_bytes": 4720689152,
+                "nonreclaimable_host_required_bytes": 892338176,
+                "staging_bytes": 536870912,
+                "gpu_required_with_reserve_bytes": 6062866432
+              },
+              "resources": {
+                "timestamp": "2026-10-12T07:37:31.772724Z",
+                "platform": "linux",
+                "cpu_count": 6,
+                "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+                "ram_total_bytes": 16605392896,
+                "ram_available_bytes": 13444333568,
+                "swap_used_bytes": 3137339392,
+                "disk_free_bytes": 132714729472,
+                "gpu_name": "NVIDIA GeForce RTX 2080",
+                "gpu_total_bytes": 8589934592,
+                "gpu_free_bytes": 8157265920,
+                "gpu_used_bytes": 432668672,
+                "process_rss_bytes": 107667456,
+                "metal_recommended_bytes": null
+              },
+              "cgroup": {
+                "path": "/sys/fs/cgroup",
+                "limit_bytes": 11005853696,
+                "swap_limit_bytes": 0,
+                "current_bytes": 2177409024,
+                "anon_bytes": 86876160,
+                "file_bytes": 2087288832,
+                "reclaimable_bytes": 2087280640,
+                "nonreclaimable_bytes": 90128384,
+                "nonreclaimable_headroom_bytes": 10915725312,
+                "events": {
+                  "low": 0,
+                  "high": 0,
+                  "max": 0,
+                  "oom": 0,
+                  "oom_kill": 0,
+                  "oom_group_kill": 0
+                },
+                "pressure": {
+                  "memory": {
+                    "some_total_us": 10593,
+                    "full_total_us": 10593
+                  },
+                  "io": {
+                    "some_total_us": 256374,
+                    "full_total_us": 256374
+                  }
+                }
+              }
+            },
+            "tensor_overrides": [],
+            "cpu_ffn": 0,
+            "operation_timeout_seconds": 3600.0,
+            "watchdog": {
+              "error": null,
+              "summary": {
+                "sample_count": 22303,
+                "requested_period_ms": 100,
+                "ram_available_min_bytes": 12395331584,
+                "gpu_free_min_bytes": 3268804608,
+                "cgroup_current_bytes_max": 4941418496,
+                "cgroup_anon_bytes_max": 642625536,
+                "cgroup_file_bytes_max": 4307415040,
+                "cgroup_reclaimable_bytes_max": 3938971648,
+                "cgroup_nonreclaimable_bytes_max": 2176987136,
+                "cgroup_nonreclaimable_headroom_min_bytes": 8828342272,
+                "native_rss_bytes_max": 3114356736,
+                "native_read_bytes_max": 651567104,
+                "native_major_faults_max": 40,
+                "sample_duration_max_ms": 133.533172076568
+              },
+              "last": {
+                "ram_available_bytes": 12527267840,
+                "ram_total_bytes": 16605392896,
+                "gpu_total_bytes": 8589934592,
+                "gpu_free_bytes": 3268804608,
+                "gpu_used_bytes": 5321129984,
+                "gpu_utilization_percent": 0,
+                "gpu_memory_utilization_percent": 0,
+                "gpu_sm_clock_mhz": 300,
+                "gpu_memory_clock_mhz": 405,
+                "gpu_power_watts": 8.667,
+                "gpu_pcie_rx_kb_per_second": 292,
+                "physical_ram_available_bytes": 12527267840,
+                "cgroup": {
+                  "path": "/sys/fs/cgroup",
+                  "limit_bytes": 11005853696,
+                  "swap_limit_bytes": 0,
+                  "current_bytes": 3694559232,
+                  "anon_bytes": 573804544,
+                  "file_bytes": 3112062976,
+                  "reclaimable_bytes": 2743615488,
+                  "nonreclaimable_bytes": 950943744,
+                  "nonreclaimable_headroom_bytes": 10054909952,
+                  "events": {
+                    "low": 0,
+                    "high": 0,
+                    "max": 0,
+                    "oom": 0,
+                    "oom_kill": 0,
+                    "oom_group_kill": 0
+                  },
+                  "pressure": {
+                    "memory": {
+                      "some_total_us": 17414,
+                      "full_total_us": 17414
+                    },
+                    "io": {
+                      "some_total_us": 473003,
+                      "full_total_us": 472864
+                    }
+                  }
+                },
+                "native_rss_bytes": 1525735424,
+                "native_read_bytes": 651567104,
+                "native_major_faults": 40,
+                "native_process_state": "S",
+                "elapsed_ms": 2247978.8668330293
+              },
+              "telemetry": {
+                "jsonl_path": "/data/work/guarded-worker.telemetry.jsonl",
+                "columns": [
+                  "elapsed_ms",
+                  "phase",
+                  "gpu_utilization_percent",
+                  "gpu_memory_utilization_percent",
+                  "gpu_sm_clock_mhz",
+                  "gpu_memory_clock_mhz",
+                  "gpu_power_watts",
+                  "gpu_pcie_rx_kb_per_second",
+                  "native_read_bytes",
+                  "native_major_faults",
+                  "native_process_state",
+                  "native_rss_bytes",
+                  "gpu_free_bytes",
+                  "ram_available_bytes",
+                  "cgroup_current_bytes",
+                  "cgroup_anon_bytes",
+                  "cgroup_file_bytes",
+                  "cgroup_memory_some_total_us",
+                  "cgroup_memory_full_total_us",
+                  "cgroup_io_some_total_us",
+                  "cgroup_io_full_total_us"
+                ],
+                "recorded_samples": 22303,
+                "dropped_samples": 0,
+                "max_samples": 50000,
+                "max_bytes": 16777216,
+                "truncated": false,
+                "phase_markers": [
+                  {
+                    "phase": "load",
+                    "elapsed_ms": 0
+                  },
+                  {
+                    "phase": "worker",
+                    "elapsed_ms": 2191.706198034808
+                  }
+                ],
+                "summary": {
+                  "sample_count": 22303,
+                  "gap_count": 22302,
+                  "gap_max_ms": 206.9759420119226,
+                  "gap_min_ms": 26.40285703819245,
+                  "gpu_coverage_ms": 2247865.555821103,
+                  "physical_read_bytes_delta": 651567104,
+                  "physical_read_bytes_per_second_max": 1318513667.931807,
+                  "time_weighted_gpu_utilization_percent": 6.75364995006693,
+                  "fraction_gpu_utilization_below_20_percent": 0.9313190163005253,
+                  "actual_sample_period_mean_ms": 100.7921063501526
+                },
+                "phases": {
+                  "load": {
+                    "sample_count": 22,
+                    "gap_count": 21,
+                    "gap_max_ms": 116.5557720232755,
+                    "gap_min_ms": 31.302036019042134,
+                    "gpu_coverage_ms": 2063.100092113018,
+                    "physical_read_bytes_delta": 647585792,
+                    "physical_read_bytes_per_second_max": 1318513667.931807,
+                    "time_weighted_gpu_utilization_percent": 3.237982977112403,
+                    "fraction_gpu_utilization_below_20_percent": 0.9026963922994607,
+                    "actual_sample_period_mean_ms": 98.24286152919133
+                  },
+                  "worker": {
+                    "sample_count": 22281,
+                    "gap_count": 22280,
+                    "gap_max_ms": 206.9759420119226,
+                    "gap_min_ms": 26.40285703819245,
+                    "gpu_coverage_ms": 2245701.1758340523,
+                    "physical_read_bytes_delta": 3981312,
+                    "physical_read_bytes_per_second_max": 46886182.4223206,
+                    "time_weighted_gpu_utilization_percent": 6.756101952316329,
+                    "fraction_gpu_utilization_below_20_percent": 0.9313873135575192,
+                    "actual_sample_period_mean_ms": 100.79448724569355
+                  }
+                },
+                "unavailable": {},
+                "interpretation": "Process read_bytes counts physical reads, including readahead. Utilization and IO/pressure correlation cannot establish full causality without a trace."
+              }
+            }
+          }
+        },
+        "busy": false,
+        "profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "git_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+        "error": null,
+        "watchdog": null,
+        "resources": {
+          "timestamp": "2026-10-12T08:14:59.688556Z",
+          "platform": "linux",
+          "cpu_count": 6,
+          "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+          "ram_total_bytes": 16605392896,
+          "ram_available_bytes": 12527267840,
+          "swap_used_bytes": 3125231616,
+          "disk_free_bytes": 132562362368,
+          "gpu_name": "NVIDIA GeForce RTX 2080",
+          "gpu_total_bytes": 8589934592,
+          "gpu_free_bytes": 3268804608,
+          "gpu_used_bytes": 5321129984,
+          "process_rss_bytes": 1653202944,
+          "metal_recommended_bytes": null
+        }
+      }
+    },
+    "scope_adjustment": {
+      "requested_pairs": 4,
+      "original_pairs": 5,
+      "reason": "User requested completion after four pairs",
+      "signal": "SIGINT",
+      "pid": 99078,
+      "sent_at": "2026-10-12T08:14:49.509715+00:00",
+      "completed_samples": 8,
+      "raw_status": "cancelled",
+      "raw_report": ".pd-demo/long-context-20261012/4b-benchmark.json",
+      "raw_report_sha256": "0eb41dfa857d9b6abd0301c7619e6419061d7e44e8e3b15eed8d287975c5b29e",
+      "excluded_unmeasured_stage_events": [
+        {
+          "prompt_tokens": 65535,
+          "repeat": 4,
+          "mode": "local",
+          "stage": "prefill",
+          "elapsed_ms": 0,
+          "data": {}
+        }
+      ],
+      "interpretation": "Four full pairs completed. The original five-pair runner was cancelled at that boundary; no fifth-pair timing is included. Completion here refers to the final user-requested scope."
+    },
+    "remote_experiment_final": {
+      "health": {
+        "status": "ready",
+        "engine": {
+          "status": "ready",
+          "backend": "cuda",
+          "profile": {
+            "model_id": "qwen3.5-4b",
+            "cache_type": "q8_0",
+            "context_size": 65663,
+            "batch_size": 65535,
+            "ubatch_size": 2048,
+            "gpu_layers": -1,
+            "cpu_ffn": 0,
+            "threads": 4
+          },
+          "fingerprint": {
+            "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+            "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+            "cache_type_k": "q8_0",
+            "cache_type_v": "q8_0",
+            "context_size": 65663,
+            "flash_attention": true,
+            "rope_settings": {},
+            "state_format_version": 1
+          },
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "startup_ms": 2077.9578019864857,
+          "restart_pending": false,
+          "native_exit_code": null,
+          "effective_settings": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b1-23b0202",
+            "native_log": {
+              "observed_from": "native log",
+              "effective_n_ctx": 65792,
+              "effective_n_batch": 65535,
+              "effective_n_ubatch": 2048,
+              "flash_attention": true
+            }
+          },
+          "admission": {
+            "allowed": true,
+            "reasons": [],
+            "budgets": {
+              "state_bytes": 1195752448
+            },
+            "resources": {
+              "timestamp": "2026-10-12T07:37:31.772724Z",
+              "platform": "linux",
+              "cpu_count": 6,
+              "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+              "ram_total_bytes": 16605392896,
+              "ram_available_bytes": 13444333568,
+              "swap_used_bytes": 3137339392,
+              "disk_free_bytes": 132714729472,
+              "gpu_name": "NVIDIA GeForce RTX 2080",
+              "gpu_total_bytes": 8589934592,
+              "gpu_free_bytes": 8157265920,
+              "gpu_used_bytes": 432668672,
+              "process_rss_bytes": 107667456,
+              "metal_recommended_bytes": null
+            }
+          },
+          "native": {
+            "status": "ok"
+          },
+          "resources": {
+            "timestamp": "2026-10-12T08:16:21.792076Z",
+            "platform": "linux",
+            "cpu_count": 6,
+            "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+            "ram_total_bytes": 16605392896,
+            "ram_available_bytes": 12536217600,
+            "swap_used_bytes": 3123134464,
+            "disk_free_bytes": 132604395520,
+            "gpu_name": "NVIDIA GeForce RTX 2080",
+            "gpu_total_bytes": 8589934592,
+            "gpu_free_bytes": 3268804608,
+            "gpu_used_bytes": 5321129984,
+            "process_rss_bytes": 1653202944,
+            "metal_recommended_bytes": null,
+            "native_process_rss_bytes": 1525735424
+          },
+          "calibration": {
+            "fixed_profile": {
+              "model_id": "qwen3.5-4b",
+              "cache_type": "q8_0",
+              "context_size": 65663,
+              "batch_size": 65535,
+              "ubatch_size": 2048,
+              "gpu_layers": -1,
+              "cpu_ffn": 0,
+              "threads": 4
+            },
+            "estimate": {
+              "host": {
+                "model_bytes": 522190848,
+                "context_bytes": 1048576,
+                "compute_bytes": 354418688,
+                "reported_mib": [
+                  497,
+                  0,
+                  337
+                ]
+              },
+              "devices": {
+                "CUDA0": {
+                  "model_bytes": 2730491904,
+                  "context_bytes": 1198522368,
+                  "compute_bytes": 791674880,
+                  "reported_mib": [
+                    2603,
+                    1142,
+                    754
+                  ]
+                }
+              },
+              "arguments": [
+                "/opt/llama/bin/pd-server-fit-params",
+                "--model",
+                "/data/cache/models/qwen3.5-4b/Qwen3.5-4B-Q4_K_M.gguf",
+                "--parallel",
+                "1",
+                "--ctx-size",
+                "65663",
+                "--batch-size",
+                "65535",
+                "--ubatch-size",
+                "2048",
+                "--threads",
+                "4",
+                "--threads-batch",
+                "4",
+                "--gpu-layers",
+                "-1",
+                "--n-cpu-ffn",
+                "0",
+                "--cache-type-k",
+                "q8_0",
+                "--cache-type-v",
+                "q8_0",
+                "--flash-attn",
+                "on",
+                "--fit",
+                "off",
+                "--op-offload",
+                "--no-repack",
+                "--no-host",
+                "--load-mode",
+                "mmap",
+                "--device",
+                "CUDA0",
+                "--spec-type",
+                "none",
+                "--fit-print",
+                "on"
+              ],
+              "stdout": "CUDA0 2603 1142 754 \nHost 497 0 337 \n",
+              "stderr": "PD_SERVER_FIT_PARAMS {\"kind\":\"server-context-v1\",\"engine_revision\":\"23b0202a189c44a54625aadcb37a946dd1d6278d\",\"linked_commit\":\"23b0202\",\"probe_source_sha256\":\"fc9b99018dec53779cef2f531bbae2813b4b0608f3d3c4fd22ab5745eb79d9ca\",\"parallel\":1,\"n_outputs_max\":1,\"n_outputs_max_per_seq\":1,\"n_rs_seq\":0,\"n_ctx\":65663,\"n_batch\":65535,\"n_ubatch\":2048,\"kv_unified\":false,\"offload_kqv\":true,\"op_offload\":true,\"flash_attn_type\":1}\n",
+              "provenance": {
+                "kind": "server-context-v1",
+                "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+                "linked_commit": "23b0202",
+                "probe_source_sha256": "fc9b99018dec53779cef2f531bbae2813b4b0608f3d3c4fd22ab5745eb79d9ca",
+                "parallel": 1,
+                "n_outputs_max": 1,
+                "n_outputs_max_per_seq": 1,
+                "n_rs_seq": 0,
+                "n_ctx": 65663,
+                "n_batch": 65535,
+                "n_ubatch": 2048,
+                "kv_unified": false,
+                "offload_kqv": true,
+                "op_offload": true,
+                "flash_attn_type": 1,
+                "binary": "/opt/llama/bin/pd-server-fit-params",
+                "estimate_scope": "No-allocation server scheduler reserved graph",
+                "runtime_resize_caveat": "Runtime chunk shapes can resize compute buffers beyond this estimate; driver cushions, live reserves and watchdog checks remain required"
+              }
+            },
+            "admission": {
+              "allowed": true,
+              "reasons": [],
+              "budgets": {
+                "native_host_total_bytes": 877658112,
+                "native_device_total_bytes": 4720689152,
+                "nonreclaimable_host_required_bytes": 892338176,
+                "staging_bytes": 536870912,
+                "gpu_required_with_reserve_bytes": 6062866432
+              },
+              "resources": {
+                "timestamp": "2026-10-12T07:37:31.772724Z",
+                "platform": "linux",
+                "cpu_count": 6,
+                "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+                "ram_total_bytes": 16605392896,
+                "ram_available_bytes": 13444333568,
+                "swap_used_bytes": 3137339392,
+                "disk_free_bytes": 132714729472,
+                "gpu_name": "NVIDIA GeForce RTX 2080",
+                "gpu_total_bytes": 8589934592,
+                "gpu_free_bytes": 8157265920,
+                "gpu_used_bytes": 432668672,
+                "process_rss_bytes": 107667456,
+                "metal_recommended_bytes": null
+              },
+              "cgroup": {
+                "path": "/sys/fs/cgroup",
+                "limit_bytes": 11005853696,
+                "swap_limit_bytes": 0,
+                "current_bytes": 2177409024,
+                "anon_bytes": 86876160,
+                "file_bytes": 2087288832,
+                "reclaimable_bytes": 2087280640,
+                "nonreclaimable_bytes": 90128384,
+                "nonreclaimable_headroom_bytes": 10915725312,
+                "events": {
+                  "low": 0,
+                  "high": 0,
+                  "max": 0,
+                  "oom": 0,
+                  "oom_kill": 0,
+                  "oom_group_kill": 0
+                },
+                "pressure": {
+                  "memory": {
+                    "some_total_us": 10593,
+                    "full_total_us": 10593
+                  },
+                  "io": {
+                    "some_total_us": 256374,
+                    "full_total_us": 256374
+                  }
+                }
+              }
+            },
+            "tensor_overrides": [],
+            "cpu_ffn": 0,
+            "operation_timeout_seconds": 3600.0,
+            "watchdog": {
+              "error": null,
+              "summary": {
+                "sample_count": 23117,
+                "requested_period_ms": 100,
+                "ram_available_min_bytes": 12395331584,
+                "gpu_free_min_bytes": 3268804608,
+                "cgroup_current_bytes_max": 4941418496,
+                "cgroup_anon_bytes_max": 642625536,
+                "cgroup_file_bytes_max": 4307415040,
+                "cgroup_reclaimable_bytes_max": 3938971648,
+                "cgroup_nonreclaimable_bytes_max": 2176987136,
+                "cgroup_nonreclaimable_headroom_min_bytes": 8828342272,
+                "native_rss_bytes_max": 3114356736,
+                "native_read_bytes_max": 651567104,
+                "native_major_faults_max": 40,
+                "sample_duration_max_ms": 133.533172076568
+              },
+              "last": {
+                "ram_available_bytes": 12540112896,
+                "ram_total_bytes": 16605392896,
+                "gpu_total_bytes": 8589934592,
+                "gpu_free_bytes": 3268804608,
+                "gpu_used_bytes": 5321129984,
+                "gpu_utilization_percent": 0,
+                "gpu_memory_utilization_percent": 0,
+                "gpu_sm_clock_mhz": 300,
+                "gpu_memory_clock_mhz": 405,
+                "gpu_power_watts": 7.948,
+                "gpu_pcie_rx_kb_per_second": 390,
+                "physical_ram_available_bytes": 12540112896,
+                "cgroup": {
+                  "path": "/sys/fs/cgroup",
+                  "limit_bytes": 11005853696,
+                  "swap_limit_bytes": 0,
+                  "current_bytes": 3694440448,
+                  "anon_bytes": 573804544,
+                  "file_bytes": 3112189952,
+                  "reclaimable_bytes": 2743746560,
+                  "nonreclaimable_bytes": 950693888,
+                  "nonreclaimable_headroom_bytes": 10055159808,
+                  "events": {
+                    "low": 0,
+                    "high": 0,
+                    "max": 0,
+                    "oom": 0,
+                    "oom_kill": 0,
+                    "oom_group_kill": 0
+                  },
+                  "pressure": {
+                    "memory": {
+                      "some_total_us": 17414,
+                      "full_total_us": 17414
+                    },
+                    "io": {
+                      "some_total_us": 473003,
+                      "full_total_us": 472864
+                    }
+                  }
+                },
+                "native_rss_bytes": 1525735424,
+                "native_read_bytes": 651567104,
+                "native_major_faults": 40,
+                "native_process_state": "S",
+                "elapsed_ms": 2330052.6256329613
+              },
+              "telemetry": {
+                "jsonl_path": "/data/work/guarded-worker.telemetry.jsonl",
+                "columns": [
+                  "elapsed_ms",
+                  "phase",
+                  "gpu_utilization_percent",
+                  "gpu_memory_utilization_percent",
+                  "gpu_sm_clock_mhz",
+                  "gpu_memory_clock_mhz",
+                  "gpu_power_watts",
+                  "gpu_pcie_rx_kb_per_second",
+                  "native_read_bytes",
+                  "native_major_faults",
+                  "native_process_state",
+                  "native_rss_bytes",
+                  "gpu_free_bytes",
+                  "ram_available_bytes",
+                  "cgroup_current_bytes",
+                  "cgroup_anon_bytes",
+                  "cgroup_file_bytes",
+                  "cgroup_memory_some_total_us",
+                  "cgroup_memory_full_total_us",
+                  "cgroup_io_some_total_us",
+                  "cgroup_io_full_total_us"
+                ],
+                "recorded_samples": 23117,
+                "dropped_samples": 0,
+                "max_samples": 50000,
+                "max_bytes": 16777216,
+                "truncated": false,
+                "phase_markers": [
+                  {
+                    "phase": "load",
+                    "elapsed_ms": 0
+                  },
+                  {
+                    "phase": "worker",
+                    "elapsed_ms": 2191.706198034808
+                  }
+                ],
+                "summary": {
+                  "sample_count": 23117,
+                  "gap_count": 23116,
+                  "gap_max_ms": 206.9759420119226,
+                  "gap_min_ms": 26.40285703819245,
+                  "gpu_coverage_ms": 2329939.314621035,
+                  "physical_read_bytes_delta": 651567104,
+                  "physical_read_bytes_per_second_max": 1318513667.931807,
+                  "time_weighted_gpu_utilization_percent": 6.515747858135783,
+                  "fraction_gpu_utilization_below_20_percent": 0.9337383524844849,
+                  "actual_sample_period_mean_ms": 100.79336021028877
+                },
+                "phases": {
+                  "load": {
+                    "sample_count": 22,
+                    "gap_count": 21,
+                    "gap_max_ms": 116.5557720232755,
+                    "gap_min_ms": 31.302036019042134,
+                    "gpu_coverage_ms": 2063.100092113018,
+                    "physical_read_bytes_delta": 647585792,
+                    "physical_read_bytes_per_second_max": 1318513667.931807,
+                    "time_weighted_gpu_utilization_percent": 3.237982977112403,
+                    "fraction_gpu_utilization_below_20_percent": 0.9026963922994607,
+                    "actual_sample_period_mean_ms": 98.24286152919133
+                  },
+                  "worker": {
+                    "sample_count": 23095,
+                    "gap_count": 23094,
+                    "gap_max_ms": 206.9759420119226,
+                    "gap_min_ms": 26.40285703819245,
+                    "gpu_coverage_ms": 2327774.934633984,
+                    "physical_read_bytes_delta": 3981312,
+                    "physical_read_bytes_per_second_max": 46886182.4223206,
+                    "time_weighted_gpu_utilization_percent": 6.517892203679549,
+                    "fraction_gpu_utilization_below_20_percent": 0.9338064911996141,
+                    "actual_sample_period_mean_ms": 100.79565838027125
+                  }
+                },
+                "unavailable": {},
+                "interpretation": "Process read_bytes counts physical reads, including readahead. Utilization and IO/pressure correlation cannot establish full causality without a trace."
+              }
+            }
+          }
+        },
+        "busy": false,
+        "profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "git_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+        "error": null,
+        "watchdog": null,
+        "resources": {
+          "timestamp": "2026-10-12T08:16:21.793190Z",
+          "platform": "linux",
+          "cpu_count": 6,
+          "cpu_model": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+          "ram_total_bytes": 16605392896,
+          "ram_available_bytes": 12536217600,
+          "swap_used_bytes": 3123134464,
+          "disk_free_bytes": 132604395520,
+          "gpu_name": "NVIDIA GeForce RTX 2080",
+          "gpu_total_bytes": 8589934592,
+          "gpu_free_bytes": 3268804608,
+          "gpu_used_bytes": 5321129984,
+          "process_rss_bytes": 1653202944,
+          "metal_recommended_bytes": null
+        }
+      },
+      "exit": {
+        "checked_at": "2026-10-12T08:16:22.597122+00:00",
+        "container": "pd-long-context-4b",
+        "image_id": "sha256:095bbf97271dfc2f8805104eb5bb693c394904f0be65f8d42b2005be6a1a5bbf",
+        "state": {
+          "Status": "exited",
+          "Running": false,
+          "Paused": false,
+          "Restarting": false,
+          "OOMKilled": false,
+          "Dead": false,
+          "Pid": 0,
+          "ExitCode": 143,
+          "Error": "",
+          "StartedAt": "2026-10-12T07:37:21.420587847Z",
+          "FinishedAt": "2026-10-12T08:16:22.402919907Z",
+          "Health": {
+            "Status": "unhealthy",
+            "FailingStreak": 0,
+            "Log": [
+              {
+                "Start": "2026-10-12T08:15:18.695147455Z",
+                "End": "2026-10-12T08:15:19.018111611Z",
+                "ExitCode": 0,
+                "Output": ""
+              },
+              {
+                "Start": "2026-10-12T08:15:34.018984057Z",
+                "End": "2026-10-12T08:15:34.264164286Z",
+                "ExitCode": 0,
+                "Output": ""
+              },
+              {
+                "Start": "2026-10-12T08:15:49.264712864Z",
+                "End": "2026-10-12T08:15:49.570027894Z",
+                "ExitCode": 0,
+                "Output": ""
+              },
+              {
+                "Start": "2026-10-12T08:16:04.570503155Z",
+                "End": "2026-10-12T08:16:04.904210259Z",
+                "ExitCode": 0,
+                "Output": ""
+              },
+              {
+                "Start": "2026-10-12T08:16:19.904746973Z",
+                "End": "2026-10-12T08:16:20.214872409Z",
+                "ExitCode": 0,
+                "Output": ""
+              }
+            ]
+          }
+        },
+        "limits": {
+          "Memory": 11005853696,
+          "MemorySwap": 11005853696,
+          "NanoCpus": 4000000000,
+          "PidsLimit": 256
+        },
+        "files": [
+          {
+            "name": "llama-cuda.log",
+            "bytes": 29040
+          },
+          {
+            "name": "health-before-stop.json",
+            "bytes": 16887
+          },
+          {
+            "name": "launch.json",
+            "bytes": 3138
+          },
+          {
+            "name": "launch-noop.json",
+            "bytes": 3114
+          },
+          {
+            "name": "launch-noop-state.json",
+            "bytes": 352
+          },
+          {
+            "name": "guarded-worker.telemetry.jsonl",
+            "bytes": 3724831
+          }
+        ]
+      }
+    },
+    "network_probe": {
+      "schema_version": 1,
+      "host_alias": "gpu_home",
+      "started_at": "2026-10-12T07:33:59.833619+00:00",
+      "status": "completed",
+      "parameters": {
+        "bytes_per_transfer": 67108864,
+        "repeats": 3,
+        "timeout_per_command_s": 120.0,
+        "chunk_bytes": 262144
+      },
+      "provenance": {
+        "transport": "SSH with fresh connection per command",
+        "ssh_options": [
+          "-T",
+          "-o",
+          "BatchMode=yes",
+          "-o",
+          "ConnectTimeout=10",
+          "-o",
+          "Compression=no",
+          "-o",
+          "ControlMaster=no",
+          "-o",
+          "ControlPath=none",
+          "-o",
+          "ControlPersist=no",
+          "-o",
+          "ForwardAgent=no",
+          "-o",
+          "ClearAllForwardings=yes"
+        ],
+        "local_system": "Darwin",
+        "local_python_version": "3.13.2",
+        "payload": "repeated deterministic SHAKE-256 pseudorandom block",
+        "verification": "exact byte counts and SHA-256 at both endpoints",
+        "rate_units": "decimal Mbps and MB/s",
+        "duration_scope": "local monotonic wall time including SSH setup and verification",
+        "latency_scope": "SSH command wall latency including setup; not ICMP RTT",
+        "remote_duration_scope": "Python stream loop including SHA-256; excludes SSH setup",
+        "local_byte_scope": "download: read locally; upload: accepted by local SSH stdin",
+        "remote_source_mode": "git-deployed module",
+        "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+        "expected_remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a"
+      },
+      "latency_samples": [
+        {
+          "sample": 1,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 1.516694916994311
+        },
+        {
+          "sample": 2,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 1.3704299999953946
+        },
+        {
+          "sample": 3,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 1.4278916659968672
+        }
+      ],
+      "transfers": [
+        {
+          "repeat": 1,
+          "direction": "download",
+          "requested_bytes": 67108864,
+          "local_bytes": 67108864,
+          "remote_bytes": 67108864,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 7.004564125003526,
+          "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "remote_stream_duration_s": 5.550953272962943,
+          "remote_python_version": "3.12.3",
+          "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+          "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+          "local_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "verified": true,
+          "Mbps": 76.64587009541151,
+          "MBps": 9.580733761926439
+        },
+        {
+          "repeat": 1,
+          "direction": "upload",
+          "requested_bytes": 67108864,
+          "local_bytes": 67108864,
+          "remote_bytes": 67108864,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 3.0285205830004998,
+          "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "remote_stream_duration_s": 1.440070206997916,
+          "remote_python_version": "3.12.3",
+          "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+          "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+          "verified": true,
+          "Mbps": 177.27167350736522,
+          "MBps": 22.158959188420653
+        },
+        {
+          "repeat": 2,
+          "direction": "download",
+          "requested_bytes": 67108864,
+          "local_bytes": 67108864,
+          "remote_bytes": 67108864,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 7.652812000000267,
+          "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "remote_stream_duration_s": 5.928700637072325,
+          "remote_python_version": "3.12.3",
+          "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+          "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+          "local_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "verified": true,
+          "Mbps": 70.15341707074226,
+          "MBps": 8.769177133842783
+        },
+        {
+          "repeat": 2,
+          "direction": "upload",
+          "requested_bytes": 67108864,
+          "local_bytes": 67108864,
+          "remote_bytes": 67108864,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 2.8939954999950714,
+          "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "remote_stream_duration_s": 1.399837497039698,
+          "remote_python_version": "3.12.3",
+          "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+          "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+          "verified": true,
+          "Mbps": 185.51200649790727,
+          "MBps": 23.189000812238408
+        },
+        {
+          "repeat": 3,
+          "direction": "download",
+          "requested_bytes": 67108864,
+          "local_bytes": 67108864,
+          "remote_bytes": 67108864,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 7.303925582993543,
+          "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "remote_stream_duration_s": 5.651516965939663,
+          "remote_python_version": "3.12.3",
+          "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+          "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+          "local_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "verified": true,
+          "Mbps": 73.50443345836518,
+          "MBps": 9.188054182295648
+        },
+        {
+          "repeat": 3,
+          "direction": "upload",
+          "requested_bytes": 67108864,
+          "local_bytes": 67108864,
+          "remote_bytes": 67108864,
+          "status": "completed",
+          "ssh_returncode": 0,
+          "duration_s": 3.2807484160002787,
+          "remote_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+          "remote_stream_duration_s": 1.7013423289172351,
+          "remote_python_version": "3.12.3",
+          "remote_source_path": "/home/riverfog7/Workspace/pd-disaggregation-demo/.deploy/releases/fe0cef3274b916a071323a1270d56a3857dcf34a/src/pd_disaggregation_demo/link_probe.py",
+          "remote_source_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+          "verified": true,
+          "Mbps": 163.64281679804196,
+          "MBps": 20.455352099755245
+        }
+      ],
+      "expected_sha256": "c0741ccce6327176330574681d1af909516cba181c94757c9ef86d30b3ad7ff8",
+      "summary": {
+        "ssh_command_latency": {
+          "successful_samples": 3,
+          "median_ms": 1427.8916659968672
+        },
+        "download": {
+          "successful_samples": 3,
+          "median_Mbps": 73.50443345836518,
+          "median_MBps": 9.188054182295648
+        },
+        "upload": {
+          "successful_samples": 3,
+          "median_Mbps": 177.27167350736522,
+          "median_MBps": 22.158959188420653
+        }
+      },
+      "finished_at": "2026-10-12T07:34:35.355819+00:00"
+    },
+    "report_renderer_revision": "e7ea25a6997394c3061476923cae68f242cb8a37"
+  },
+  "samples": [
+    {
+      "prompt_tokens": 65535,
+      "repeat": 0,
+      "order": 0,
+      "result": {
+        "run_id": "f42faa004ca64c47ba4ffeb6f852f949",
+        "mode": "local",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 384573.1512499915,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 384527.478,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 6274.124,
+          "total_ms": 390880.8598750038,
+          "prefill_tps": 170.42995299285218,
+          "decode_tps": 20.24186962195838,
+          "client_decode_tps": 20.242993627943303,
+          "state_bytes": 0,
+          "transfer_mbps": null,
+          "cache_n": 0,
+          "prompt_n": 65535,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T07:38:17.716555Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 23986651136,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134346862592,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 4300308480,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 4203020288
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 3100,
+              "process_rss_max_bytes": 5027921920,
+              "native_process_rss_max_bytes": 4930617344,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 22949101568
+            },
+            "after": {
+              "timestamp": "2026-10-12T07:44:48.565483Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 23889772544,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134323896320,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5027921920,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 4930617344
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": null,
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 0,
+      "order": 1,
+      "result": {
+        "run_id": "23eaf0b0d4464a3581dfe0cec641ef96",
+        "mode": "split",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 151905.52883299824,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 37927.33492702246,
+          "export_ms": 3201.2473250506446,
+          "transfer_ms": 106519.9044579931,
+          "restore_ms": 475.08616700361017,
+          "final_prompt_ms": 54.381,
+          "decode_ms": 6122.793,
+          "total_ms": 158063.04324998928,
+          "prefill_tps": 1729.3244411777023,
+          "decode_tps": 20.742167830922916,
+          "client_decode_tps": 20.74253497906809,
+          "state_bytes": 1195342608,
+          "transfer_mbps": 89.77421555772364,
+          "cache_n": 65534,
+          "prompt_n": 1,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T07:47:19.936640Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 23807574016,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 133107871744,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5034737664,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 4930666496
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 57,
+              "process_rss_max_bytes": 5106221056,
+              "native_process_rss_max_bytes": 5002067968,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 23164862464
+            },
+            "after": {
+              "timestamp": "2026-10-12T07:47:26.637898Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 23168352256,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 131912294400,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5106221056,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5002067968
+            },
+            "remote_prefill_peak": {
+              "process_rss_max_bytes": 1698607104.0,
+              "gpu_used_max_bytes": 5321129984.0,
+              "sample_count": 404.0,
+              "sample_period_ms": 100.0
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          },
+          "remote": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b1-23b0202",
+            "native_log": {
+              "observed_from": "native log",
+              "effective_n_ctx": 65792,
+              "effective_n_batch": 65535,
+              "effective_n_ubatch": 2048,
+              "flash_attention": true
+            }
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 1,
+      "order": 0,
+      "result": {
+        "run_id": "4275f8a2c6304c108240c5ea2ead3dee",
+        "mode": "split",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 149322.9762080009,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 37995.22772000637,
+          "export_ms": 3170.3430709894747,
+          "transfer_ms": 104111.79591600376,
+          "restore_ms": 355.0545420002891,
+          "final_prompt_ms": 46.451,
+          "decode_ms": 9042.024,
+          "total_ms": 158403.27345799597,
+          "prefill_tps": 1726.274330474034,
+          "decode_tps": 14.04552785969159,
+          "client_decode_tps": 14.041259096879731,
+          "state_bytes": 1195342608,
+          "transfer_mbps": 91.85069549386232,
+          "cache_n": 65534,
+          "prompt_n": 1,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T07:49:55.609668Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 21882241024,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 133143744512,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5108531200,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5002117120
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 63,
+              "process_rss_max_bytes": 5110251520,
+              "native_process_rss_max_bytes": 5003771904,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 21471477760
+            },
+            "after": {
+              "timestamp": "2026-10-12T07:50:05.106497Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 21538308096,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 131931754496,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5110251520,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5003771904
+            },
+            "remote_prefill_peak": {
+              "process_rss_max_bytes": 1710768128.0,
+              "gpu_used_max_bytes": 5321129984.0,
+              "sample_count": 405.0,
+              "sample_period_ms": 100.0
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          },
+          "remote": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b1-23b0202",
+            "native_log": {
+              "observed_from": "native log",
+              "effective_n_ctx": 65792,
+              "effective_n_batch": 65535,
+              "effective_n_ubatch": 2048,
+              "flash_attention": true
+            }
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 1,
+      "order": 1,
+      "result": {
+        "run_id": "8e427d19edb0444b9810dd90810f73e7",
+        "mode": "local",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 387595.1051250013,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 387508.358,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 7023.026,
+          "total_ms": 394683.9485829987,
+          "prefill_tps": 169.11893291344182,
+          "decode_tps": 18.083373178456124,
+          "client_decode_tps": 18.10288263672019,
+          "state_bytes": 0,
+          "transfer_mbps": null,
+          "cache_n": 0,
+          "prompt_n": 65535,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T07:50:05.214799Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 21538308096,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134336643072,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5110300672,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5003821056
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 3073,
+              "process_rss_max_bytes": 5111971840,
+              "native_process_rss_max_bytes": 5005459456,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 21538308096
+            },
+            "after": {
+              "timestamp": "2026-10-12T07:56:39.826385Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22670999552,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134294589440,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5111971840,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005459456
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": null,
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 2,
+      "order": 0,
+      "result": {
+        "run_id": "8617e0cca7af4c70950707bcab3a6170",
+        "mode": "local",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 389680.3373750008,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 389632.462,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 6792.116,
+          "total_ms": 396543.34729199763,
+          "prefill_tps": 168.19697122669413,
+          "decode_tps": 18.698149442677366,
+          "client_decode_tps": 18.69917622248078,
+          "state_bytes": 0,
+          "transfer_mbps": null,
+          "cache_n": 0,
+          "prompt_n": 65535,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T07:56:39.998361Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22670999552,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134294573056,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5111988224,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005475840
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 3161,
+              "process_rss_max_bytes": 5111988224,
+              "native_process_rss_max_bytes": 5005475840,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 22202417152
+            },
+            "after": {
+              "timestamp": "2026-10-12T08:03:16.485728Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22926458880,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134299734016,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5111988224,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005475840
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": null,
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 2,
+      "order": 1,
+      "result": {
+        "run_id": "451dcabd2f534820b02a0b036f3f86a9",
+        "mode": "split",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 154351.17862500192,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 37914.30913005024,
+          "export_ms": 3169.117276906036,
+          "transfer_ms": 109123.2913749991,
+          "restore_ms": 380.14433298667427,
+          "final_prompt_ms": 49.338,
+          "decode_ms": 6825.192,
+          "total_ms": 161212.20408299996,
+          "prefill_tps": 1730.3875395832026,
+          "decode_tps": 18.607535143333696,
+          "client_decode_tps": 18.60757103790019,
+          "state_bytes": 1195342608,
+          "transfer_mbps": 87.63244531488618,
+          "cache_n": 65534,
+          "prompt_n": 1,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T08:05:50.523696Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22795976704,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 133081735168,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5112135680,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005492224
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 63,
+              "process_rss_max_bytes": 5112184832,
+              "native_process_rss_max_bytes": 5005492224,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 22302244864
+            },
+            "after": {
+              "timestamp": "2026-10-12T08:05:57.828561Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22314811392,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 131886112768,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5112184832,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005492224
+            },
+            "remote_prefill_peak": {
+              "process_rss_max_bytes": 1716244480.0,
+              "gpu_used_max_bytes": 5321129984.0,
+              "sample_count": 402.0,
+              "sample_period_ms": 100.0
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          },
+          "remote": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b1-23b0202",
+            "native_log": {
+              "observed_from": "native log",
+              "effective_n_ctx": 65792,
+              "effective_n_batch": 65535,
+              "effective_n_ubatch": 2048,
+              "flash_attention": true
+            }
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 3,
+      "order": 0,
+      "result": {
+        "run_id": "58dce5625020452e89e2cc0fa1cb6a3e",
+        "mode": "split",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 150329.97833300033,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 38007.32044596225,
+          "export_ms": 3126.6744979657233,
+          "transfer_ms": 105216.62991700578,
+          "restore_ms": 351.3134579989128,
+          "final_prompt_ms": 56.397,
+          "decode_ms": 7395.283,
+          "total_ms": 157766.54187499662,
+          "prefill_tps": 1725.703061259878,
+          "decode_tps": 17.173108858714397,
+          "client_decode_tps": 17.17311756687884,
+          "state_bytes": 1195342608,
+          "transfer_mbps": 90.88621134836794,
+          "cache_n": 65534,
+          "prompt_n": 1,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T08:08:27.909422Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22339731456,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 133078740992,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5112299520,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005492224
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 67,
+              "process_rss_max_bytes": 5112299520,
+              "native_process_rss_max_bytes": 5005492224,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 22158573568
+            },
+            "after": {
+              "timestamp": "2026-10-12T08:08:35.760669Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22308585472,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 131883167744,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5112299520,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005492224
+            },
+            "remote_prefill_peak": {
+              "process_rss_max_bytes": 1722023936.0,
+              "gpu_used_max_bytes": 5321129984.0,
+              "sample_count": 404.0,
+              "sample_period_ms": 100.0
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          },
+          "remote": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b1-23b0202",
+            "native_log": {
+              "observed_from": "native log",
+              "effective_n_ctx": 65792,
+              "effective_n_batch": 65535,
+              "effective_n_ubatch": 2048,
+              "flash_attention": true
+            }
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    },
+    {
+      "prompt_tokens": 65535,
+      "repeat": 3,
+      "order": 1,
+      "result": {
+        "run_id": "50a3946caf5e4f428cf4bb9dffa60351",
+        "mode": "local",
+        "model_id": "qwen3.5-4b",
+        "prompt_tokens": 65535,
+        "generated_tokens": 128,
+        "metrics": {
+          "ttft_ms": 366777.304874995,
+          "tokenize_ms": 0.0,
+          "prefill_ms": 366728.678,
+          "export_ms": 0.0,
+          "transfer_ms": 0.0,
+          "restore_ms": 0.0,
+          "final_prompt_ms": 0.0,
+          "decode_ms": 6528.026,
+          "total_ms": 373349.7489579895,
+          "prefill_tps": 178.7015958430172,
+          "decode_tps": 19.454579378207136,
+          "client_decode_tps": 19.455296506278827,
+          "state_bytes": 0,
+          "transfer_mbps": null,
+          "cache_n": 0,
+          "prompt_n": 65535,
+          "memory": {
+            "before": {
+              "timestamp": "2026-10-12T08:08:35.955216Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22308585472,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134288375808,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5112315904,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005508608
+            },
+            "peak": {
+              "sample_period_ms": 100,
+              "sample_count": 2948,
+              "process_rss_max_bytes": 5112315904,
+              "native_process_rss_max_bytes": 5005508608,
+              "swap_used_max_bytes": 1703936,
+              "ram_available_min_bytes": 22243442688
+            },
+            "after": {
+              "timestamp": "2026-10-12T08:14:49.268061Z",
+              "platform": "darwin",
+              "cpu_count": 14,
+              "cpu_model": "Apple M4 Pro",
+              "ram_total_bytes": 51539607552,
+              "ram_available_bytes": 22666969088,
+              "swap_used_bytes": 1703936,
+              "disk_free_bytes": 134290362368,
+              "gpu_name": "Apple M4 Pro",
+              "gpu_total_bytes": null,
+              "gpu_free_bytes": null,
+              "gpu_used_bytes": null,
+              "process_rss_bytes": 5112315904,
+              "metal_recommended_bytes": 40200896512,
+              "native_process_rss_bytes": 5005508608
+            }
+          }
+        },
+        "fingerprint": {
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+          "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+          "cache_type_k": "q8_0",
+          "cache_type_v": "q8_0",
+          "context_size": 65663,
+          "flash_attention": true,
+          "rope_settings": {},
+          "state_format_version": 1
+        },
+        "local_profile": {
+          "model_id": "qwen3.5-4b",
+          "cache_type": "q8_0",
+          "context_size": 65663,
+          "batch_size": 65535,
+          "ubatch_size": 2048,
+          "gpu_layers": -1,
+          "cpu_ffn": 0,
+          "threads": 4
+        },
+        "remote_profile": null,
+        "effective_settings": {
+          "local": {
+            "observed_from": "native /props",
+            "effective_n_ctx": 65792,
+            "total_slots": 1,
+            "effective_n_batch": null,
+            "effective_n_ubatch": null,
+            "cache_type_k": null,
+            "cache_type_v": null,
+            "build_info": "b11552-23b0202a1"
+          }
+        },
+        "success": true,
+        "error": null,
+        "text_sha256": "e7dfd4f6f137ababd2bbb4b7d9326b78a57e2e141247f0bb2a96a1a489085c58"
+      }
+    }
+  ],
+  "warmups": [
+    {
+      "run_id": "5908e9f08aa346309b1ff3fdc08316eb",
+      "mode": "local",
+      "model_id": "qwen3.5-4b",
+      "prompt_tokens": 32,
+      "generated_tokens": 1,
+      "metrics": {
+        "ttft_ms": 101.95970900531393,
+        "tokenize_ms": 0.0,
+        "prefill_ms": 67.627,
+        "export_ms": 0.0,
+        "transfer_ms": 0.0,
+        "restore_ms": 0.0,
+        "final_prompt_ms": 0.0,
+        "decode_ms": 0.001,
+        "total_ms": 138.78745900001377,
+        "prefill_tps": 473.18378754047944,
+        "decode_tps": 0.0,
+        "client_decode_tps": null,
+        "state_bytes": 0,
+        "transfer_mbps": null,
+        "cache_n": 0,
+        "prompt_n": 32,
+        "memory": {
+          "before": {
+            "timestamp": "2026-10-12T07:38:11.518881Z",
+            "platform": "darwin",
+            "cpu_count": 14,
+            "cpu_model": "Apple M4 Pro",
+            "ram_total_bytes": 51539607552,
+            "ram_available_bytes": 23103488000,
+            "swap_used_bytes": 1703936,
+            "disk_free_bytes": 134346264576,
+            "gpu_name": "Apple M4 Pro",
+            "gpu_total_bytes": null,
+            "gpu_free_bytes": null,
+            "gpu_used_bytes": null,
+            "process_rss_bytes": 4279074816,
+            "metal_recommended_bytes": 40200896512,
+            "native_process_rss_bytes": 4197531648
+          },
+          "peak": {
+            "sample_period_ms": 100,
+            "sample_count": 3,
+            "process_rss_max_bytes": 4284874752,
+            "native_process_rss_max_bytes": 4203331584,
+            "swap_used_max_bytes": 1703936,
+            "ram_available_min_bytes": 23103389696
+          },
+          "after": {
+            "timestamp": "2026-10-12T07:38:11.620489Z",
+            "platform": "darwin",
+            "cpu_count": 14,
+            "cpu_model": "Apple M4 Pro",
+            "ram_total_bytes": 51539607552,
+            "ram_available_bytes": 23103389696,
+            "swap_used_bytes": 1703936,
+            "disk_free_bytes": 134346264576,
+            "gpu_name": "Apple M4 Pro",
+            "gpu_total_bytes": null,
+            "gpu_free_bytes": null,
+            "gpu_used_bytes": null,
+            "process_rss_bytes": 4284874752,
+            "metal_recommended_bytes": 40200896512,
+            "native_process_rss_bytes": 4203331584
+          }
+        }
+      },
+      "fingerprint": {
+        "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+        "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+        "cache_type_k": "q8_0",
+        "cache_type_v": "q8_0",
+        "context_size": 65663,
+        "flash_attention": true,
+        "rope_settings": {},
+        "state_format_version": 1
+      },
+      "local_profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 65663,
+        "batch_size": 65535,
+        "ubatch_size": 2048,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "remote_profile": null,
+      "effective_settings": {
+        "local": {
+          "observed_from": "native /props",
+          "effective_n_ctx": 65792,
+          "total_slots": 1,
+          "effective_n_batch": null,
+          "effective_n_ubatch": null,
+          "cache_type_k": null,
+          "cache_type_v": null,
+          "build_info": "b11552-23b0202a1"
+        }
+      },
+      "success": true,
+      "error": null,
+      "text_sha256": "3576370110312d2de5673616bcc3a715334db9ee41b4df5e4dfbe452508d8cee"
+    },
+    {
+      "run_id": "9883bff3f3a74db4bcb8df819a5d1c7c",
+      "mode": "split",
+      "model_id": "qwen3.5-4b",
+      "prompt_tokens": 32,
+      "generated_tokens": 1,
+      "metrics": {
+        "ttft_ms": 6010.416584002087,
+        "tokenize_ms": 0.0,
+        "prefill_ms": 96.70432494021952,
+        "export_ms": 156.86115494463593,
+        "transfer_ms": 5315.713917007088,
+        "restore_ms": 14.33187500515487,
+        "final_prompt_ms": 42.778,
+        "decode_ms": 0.001,
+        "total_ms": 6041.21229199518,
+        "prefill_tps": 337.0957569430852,
+        "decode_tps": 0.0,
+        "client_decode_tps": null,
+        "state_bytes": 53232300,
+        "transfer_mbps": 80.11311493598427,
+        "cache_n": 31,
+        "prompt_n": 1,
+        "memory": {
+          "before": {
+            "timestamp": "2026-10-12T07:38:17.589499Z",
+            "platform": "darwin",
+            "cpu_count": 14,
+            "cpu_model": "Apple M4 Pro",
+            "ram_total_bytes": 51539607552,
+            "ram_available_bytes": 23974658048,
+            "swap_used_bytes": 1703936,
+            "disk_free_bytes": 134293282816,
+            "gpu_name": "Apple M4 Pro",
+            "gpu_total_bytes": null,
+            "gpu_free_bytes": null,
+            "gpu_used_bytes": null,
+            "process_rss_bytes": 4300079104,
+            "metal_recommended_bytes": 40200896512,
+            "native_process_rss_bytes": 4202807296
+          },
+          "peak": {
+            "sample_period_ms": 100,
+            "sample_count": 2,
+            "process_rss_max_bytes": 4300259328,
+            "native_process_rss_max_bytes": 4202971136,
+            "swap_used_max_bytes": 1703936,
+            "ram_available_min_bytes": 23933239296
+          },
+          "after": {
+            "timestamp": "2026-10-12T07:38:17.679380Z",
+            "platform": "darwin",
+            "cpu_count": 14,
+            "cpu_model": "Apple M4 Pro",
+            "ram_total_bytes": 51539607552,
+            "ram_available_bytes": 23899340800,
+            "swap_used_bytes": 1703936,
+            "disk_free_bytes": 134240194560,
+            "gpu_name": "Apple M4 Pro",
+            "gpu_total_bytes": null,
+            "gpu_free_bytes": null,
+            "gpu_used_bytes": null,
+            "process_rss_bytes": 4300259328,
+            "metal_recommended_bytes": 40200896512,
+            "native_process_rss_bytes": 4202971136
+          },
+          "remote_prefill_peak": {
+            "process_rss_max_bytes": 1536352256.0,
+            "gpu_used_max_bytes": 5298061312.0,
+            "sample_count": 4.0,
+            "sample_period_ms": 100.0
+          }
+        }
+      },
+      "fingerprint": {
+        "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+        "model_sha256": "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+        "cache_type_k": "q8_0",
+        "cache_type_v": "q8_0",
+        "context_size": 65663,
+        "flash_attention": true,
+        "rope_settings": {},
+        "state_format_version": 1
+      },
+      "local_profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 65663,
+        "batch_size": 65535,
+        "ubatch_size": 2048,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "remote_profile": {
+        "model_id": "qwen3.5-4b",
+        "cache_type": "q8_0",
+        "context_size": 65663,
+        "batch_size": 65535,
+        "ubatch_size": 2048,
+        "gpu_layers": -1,
+        "cpu_ffn": 0,
+        "threads": 4
+      },
+      "effective_settings": {
+        "local": {
+          "observed_from": "native /props",
+          "effective_n_ctx": 65792,
+          "total_slots": 1,
+          "effective_n_batch": null,
+          "effective_n_ubatch": null,
+          "cache_type_k": null,
+          "cache_type_v": null,
+          "build_info": "b11552-23b0202a1"
+        },
+        "remote": {
+          "observed_from": "native /props",
+          "effective_n_ctx": 65792,
+          "total_slots": 1,
+          "effective_n_batch": null,
+          "effective_n_ubatch": null,
+          "cache_type_k": null,
+          "cache_type_v": null,
+          "build_info": "b1-23b0202",
+          "native_log": {
+            "observed_from": "native log",
+            "effective_n_ctx": 65792,
+            "effective_n_batch": 65535,
+            "effective_n_ubatch": 2048,
+            "flash_attention": true
+          }
+        }
+      },
+      "success": true,
+      "error": null,
+      "text_sha256": "3576370110312d2de5673616bcc3a715334db9ee41b4df5e4dfbe452508d8cee"
+    }
+  ],
+  "skipped": [],
+  "errors": [],
+  "failures": [],
+  "summary": [
+    {
+      "prompt_tokens": 65535,
+      "local_samples": 4,
+      "local_ttft_ms": 386084.1281874964,
+      "local_prefill_tps": 169.774442953147,
+      "local_decode_tps": 19.076364410442253,
+      "local_export_ms": 0.0,
+      "local_transfer_ms": 0.0,
+      "local_restore_ms": 0.0,
+      "local_state_bytes": 0.0,
+      "local_transfer_mbps": null,
+      "local_total_ms": 392782.40422900126,
+      "split_samples": 4,
+      "split_ttft_ms": 151117.75358299928,
+      "split_prefill_tps": 1727.7993858258683,
+      "split_decode_tps": 17.890322001024046,
+      "split_export_ms": 3169.7301739477552,
+      "split_transfer_ms": 105868.26718749944,
+      "split_restore_ms": 367.5994374934817,
+      "split_state_bytes": 1195342608.0,
+      "split_transfer_mbps": 90.33021345304579,
+      "split_total_ms": 158233.15835399262,
+      "speedup": 2.5223369805299005,
+      "ci_low": 2.4624588969812877,
+      "ci_high": 2.5777356056531646,
+      "supported_win": true,
+      "pairs": 4,
+      "modeled_1gbps_mbps": 1000,
+      "modeled_1gbps_split_ttft_ms": 54782.27463499999,
+      "modeled_1gbps_samples": 4,
+      "modeled_1gbps_speedup": 6.972025471821461,
+      "modeled_1gbps_ci_low": 6.798371155048493,
+      "modeled_1gbps_ci_high": 7.094198439517143,
+      "modeled_1gbps_pairs": 4
+    }
+  ],
+  "exports": {
+    "json": "/Users/riverfog7/Workspace/pd-disaggregation-demo/.pd-demo/reports/a148fe4978004082814fc472e00bb8bc.json",
+    "csv": "/Users/riverfog7/Workspace/pd-disaggregation-demo/.pd-demo/reports/a148fe4978004082814fc472e00bb8bc.csv",
+    "html": "/Users/riverfog7/Workspace/pd-disaggregation-demo/.pd-demo/reports/a148fe4978004082814fc472e00bb8bc.html"
+  },
+  "notes": [
+    "Weights are warmed separately; measured requests start with an empty prompt cache.",
+    "TTFT includes prefill, save, transfer, restore, and final prompt evaluation.",
+    "Repeats alternate local/split and split/local using identical canonical tokens.",
+    "Five repeats do not support a reliable tail-latency (p95) estimate.",
+    "A supported TTFT win requires the lower 95% paired bootstrap interval to exceed 1.",
+    "Memory shows before/after snapshots and sampled peaks provided by the runtime.",
+    "Sampled peaks can miss short transients; inspect sampling period/count.",
+    "Canonical corpus tokenization is preparation time, outside measured request TTFT.",
+    "Native prefill throughput counts N tokens locally and N-1 remotely before handoff.",
+    "Modeled ideal 1Gbps is an optimistic projection, not a LAN measurement: split TTFT \u2212 measured transfer time + state bytes / 125,000,000 \u00d7 1,000 ms. Other observed overhead stays unchanged. The replacement assumes payload-only 1,000 Mbit/s and omits transport framing, checksum and disk costs inside the measured transfer timer. Its paired CI describes sample variation under this fixed assumption, not real-link uncertainty or evidence of a measured win.",
+    "Dashboard phase updates occur after each sample to keep rendering outside timed requests.",
+    "Scope reduced by user from five to four pairs, with all eight requested measurements complete; original cancellation report is preserved in long-context-20261012/4b-benchmark.json.",
+    "The separate network probe used 64 MiB per direction with three repeats and includes fresh SSH setup and hashing. State-transfer timing here measures the application path.",
+    "Warmup used only 32 tokens per mode. No full-length warmup or cold-disk claim is made. Mac memory admission was explicitly waived; CUDA guards remained enabled."
+  ],
+  "evidence_format": "All eight measured timings, profiles, counts and memory are retained; generated text is represented by SHA256 and duplicate native props are omitted. Full schema-valid report remains in local exports.",
+  "raw_report": {
+    "path": ".pd-demo/long-context-20261012/4b-benchmark.json",
+    "sha256": "0eb41dfa857d9b6abd0301c7619e6419061d7e44e8e3b15eed8d287975c5b29e",
+    "status": "cancelled"
+  },
+  "validation": {
+    "complete_pairs": 4,
+    "successful_requests": 8,
+    "boundary_checks": "all passed",
+    "generated_tokens_each": 128,
+    "identical_continuations_in_all_eight_requests": true,
+    "independently_recomputed_paired_geometric_mean": 2.5223369805299005,
+    "not_executed": "27B paired run omitted at user request",
+    "sample_digest_unchanged_after_render": "306d76fd59cde6f9a341f2e64ae075bbe953d780c695cb9362925c7bb47f69a3"
+  },
+  "raw_remote_archive": {
+    "path": ".pd-demo/long-context-20261012/4b-remote-evidence.tar.gz",
+    "bytes": 517001,
+    "sha256": "34519332ddd2555eaba1add6ce345704f3466abf79ac20a05ad6516d256e22fb"
+  }
+}

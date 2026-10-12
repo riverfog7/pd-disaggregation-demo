@@ -4,11 +4,18 @@
   "branch": "codex/pd-demo",
   "overall": "working_demo_validated_on_metal_and_cuda",
   "automated": {
-    "pytest_passed": 317,
+    "pytest_passed": 344,
     "ruff_check": "passed",
     "ruff_format_check": "passed",
     "ty_src": "passed",
-    "tested_code_revision": "1aa5732508b5d911c58e8d3ed4fddd69c59cdbb3"
+    "tested_code_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
+    "timeline_followup": {
+      "tested_code_revision": "e7ea25a6997394c3061476923cae68f242cb8a37",
+      "focused_pytest_passed": 67,
+      "ruff_check": "passed",
+      "ruff_format_check": "passed",
+      "ty_src": "passed"
+    }
   },
   "native_handoff": {
     "models": [
@@ -24,8 +31,8 @@
       "CUDA-to-Metal"
     ],
     "same_saved_prefix_repeated_continuation": "passed",
-    "long_context_prompt_tokens": 8192,
-    "long_context_cache_n": 8191,
+    "long_context_prompt_tokens": 65535,
+    "long_context_cache_n": 65534,
     "long_context_prompt_n": 1,
     "rejection_and_recovery": [
       "corrupt",
@@ -40,8 +47,10 @@
       "metal-4b-acceptance.json",
       "metal-8k-acceptance.json",
       "cuda-metal-acceptance.json",
-      "cuda-metal-4b-8k-acceptance.json"
-    ]
+      "cuda-metal-4b-8k-acceptance.json",
+      "benchmark-4b-65k-2026-10-12.json"
+    ],
+    "long_context_cache_type": "q8_0"
   },
   "mac_live_checks": [
     "CLI start/status/stop",
@@ -81,39 +90,66 @@
     ]
   },
   "benchmark": {
-    "report": "benchmark-4b-q8-rerun-2026-10-12.json",
-    "run_id": "db03c2beb07546458c054b5fb98add28",
-    "measured_code_revision": "1bba923c3d244bdde9767476764e0c039be4ec0e",
+    "report": "benchmark-4b-65k-2026-10-12.json",
+    "run_id": "a148fe4978004082814fc472e00bb8bc",
+    "measured_code_revision": "fe0cef3274b916a071323a1270d56a3857dcf34a",
     "model": "qwen3.5-4b",
     "cache": "q8_0",
     "prompt_tokens": [
-      1024,
-      4096,
-      8192
+      65535
     ],
     "output_tokens": 128,
-    "paired_repeats": 5,
-    "successful_measured_requests": 30,
+    "paired_repeats": 4,
+    "successful_measured_requests": 8,
     "failed_or_skipped": 0,
-    "state_boundary_checks": "all passed",
+    "state_boundary_checks": "all passed: local 0/65535, split 65534/1",
+    "identical_fixture_continuations": true,
     "actual_route": "gpu_home SSH",
-    "measured_supported_win": false,
+    "measured_supported_win": true,
+    "speedup": 2.5223369805299005,
+    "ci_low": 2.4624588969812877,
+    "ci_high": 2.5777356056531646,
     "modeled_link_mbps": 1000,
-    "modeled_link_formula": "split TTFT - measured transfer_ms + state_bytes /125000000 *1000",
     "modeled_link_is_actual_measurement": false,
-    "projection_recomputed_independently": true,
-    "previous_report": "benchmark-4b-q8-current-route.json",
-    "interrupted_attempt_preserved": "transport-rerun-failure.json",
-    "same_canonical_prompts_as_previous": true
+    "scope_adjustment": {
+      "requested_pairs": 4,
+      "original_pairs": 5,
+      "reason": "User requested completion after four pairs",
+      "signal": "SIGINT",
+      "pid": 99078,
+      "sent_at": "2026-10-12T08:14:49.509715+00:00",
+      "completed_samples": 8,
+      "raw_status": "cancelled",
+      "raw_report": ".pd-demo/long-context-20261012/4b-benchmark.json",
+      "raw_report_sha256": "0eb41dfa857d9b6abd0301c7619e6419061d7e44e8e3b15eed8d287975c5b29e",
+      "excluded_unmeasured_stage_events": [
+        {
+          "prompt_tokens": 65535,
+          "repeat": 4,
+          "mode": "local",
+          "stage": "prefill",
+          "elapsed_ms": 0,
+          "data": {}
+        }
+      ],
+      "interpretation": "Four full pairs completed. The original five-pair runner was cancelled at that boundary; no fifth-pair timing is included. Completion here refers to the final user-requested scope."
+    },
+    "network_evidence": "link-throughput-2026-10-12.json",
+    "previous_report": "benchmark-4b-q8-rerun-2026-10-12.json",
+    "warmup_tokens_each_mode": 32,
+    "full_length_warmup": false,
+    "mac_memory_admission_overridden": true,
+    "cuda_memory_protection_retained": true
   },
   "limitations": [
     "9B profile has not been exercised on real hardware.",
-    "27B CUDA prefill/export has passed the recorded opt-in calibration; ordinary worker admission is unchanged and 27B CUDA-to-Metal TTFT has not been measured.",
-    "32k 27B CUDA prefill was measured; 65,535-token warmup was cancelled by experiment redirection and has no completed timing. Longer paired split benchmarks remain unvalidated.",
-    "The1Gbps comparison is an optimistic payload-only model; no real gigabit LAN speedup is claimed.",
-    "Memory samples may miss short transients; missing Metal GPU telemetry is not treated as zero."
+    "27B CUDA prefill/export passed the recorded opt-in calibration; 27B CUDA-to-Metal TTFT remains unmeasured because the user limited the new paired run to 4B.",
+    "32k 27B CUDA prefill was measured previously; its 65,535-token warmup was cancelled by experiment redirection and has no completed timing.",
+    "The 1Gbps comparison is an optimistic payload-only model; no real gigabit LAN speedup is claimed.",
+    "Memory samples may miss short transients; missing Metal GPU telemetry is not treated as zero.",
+    "Four pairs support only the reported small-sample comparison, not reliable tail latency or a universal speedup."
   ],
-  "performance_claim": "Current-route split TTFT loses at all three sizes. Under the ideal 1Gbps payload-only assumption, modeled paired speedups are 1.15x, 2.21x and 2.48x; their paired intervals describe sample variation under that assumption, not measured LAN gains.",
+  "performance_claim": "At 65,535 prompt tokens, four measured 4B pairs on the current SSH route give TTFT 386.08s local versus 151.12s split (medians), with paired speedup 2.522x and 95% interval 2.462-2.578x. The earlier 1k/4k/8k run lost on this route. Ideal 1Gbps at 65k is modeled at 54.78s and 6.972x, not measured.",
   "browser_validation": {
     "date": "2026-10-12",
     "ui_run_id": "9e57bd840dcf4e2c83a72606d158c473",
@@ -146,7 +182,7 @@
     "fix": "Fresh worker HTTP connections avoid idle close races through SSH; no mutation retries.",
     "tcp_regression": "passed"
   },
-  "updated_at": "2026-10-12T06:52:23.651055+00:00",
+  "updated_at": "2026-10-12T08:30:50.259011+00:00",
   "tested_code_revision_scope": "Initial full demo acceptance; newer automated and calibration revisions are recorded in their sections.",
   "calibration_27b": {
     "report": "calibration-27b-2026-10-12.json",
@@ -223,6 +259,97 @@
         ".pd-demo/validation/calibration-27b-32k-wide.jpg",
         ".pd-demo/validation/calibration-27b-32k-narrow.jpg"
       ]
+    }
+  },
+  "benchmark_1k_8k": {
+    "report": "benchmark-4b-q8-rerun-2026-10-12.json",
+    "run_id": "db03c2beb07546458c054b5fb98add28",
+    "measured_code_revision": "1bba923c3d244bdde9767476764e0c039be4ec0e",
+    "model": "qwen3.5-4b",
+    "cache": "q8_0",
+    "prompt_tokens": [
+      1024,
+      4096,
+      8192
+    ],
+    "output_tokens": 128,
+    "paired_repeats": 5,
+    "successful_measured_requests": 30,
+    "failed_or_skipped": 0,
+    "state_boundary_checks": "all passed",
+    "actual_route": "gpu_home SSH",
+    "measured_supported_win": false,
+    "modeled_link_mbps": 1000,
+    "modeled_link_formula": "split TTFT - measured transfer_ms + state_bytes /125000000 *1000",
+    "modeled_link_is_actual_measurement": false,
+    "projection_recomputed_independently": true,
+    "previous_report": "benchmark-4b-q8-current-route.json",
+    "interrupted_attempt_preserved": "transport-rerun-failure.json",
+    "same_canonical_prompts_as_previous": true
+  },
+  "long_context_remote": {
+    "worker_image": "sha256:095bbf97271dfc2f8805104eb5bb693c394904f0be65f8d42b2005be6a1a5bbf",
+    "memory_limit_bytes": 11005853696,
+    "swap_limit_bytes": 0,
+    "gpu_free_min_bytes": 3268804608,
+    "host_available_min_bytes": 12395331584,
+    "cgroup_oom_events": {
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    },
+    "watchdog_error": null,
+    "container_exit_code": 143,
+    "container_oom_killed": false,
+    "exit_reason": "Operator docker stop after all measurements; SIGTERM exit 143",
+    "telemetry_truncated": false
+  },
+  "browser_validation_4b_65k": {
+    "run_id": "a148fe4978004082814fc472e00bb8bc",
+    "renderer_revision": "e7ea25a6997394c3061476923cae68f242cb8a37",
+    "viewports_verified": [
+      [
+        1280,
+        1000
+      ],
+      [
+        535,
+        850
+      ]
+    ],
+    "timeline_axis_legend_clearance_px": 37.4,
+    "narrow_document_width": 535,
+    "console_errors": [],
+    "screenshots": [
+      ".pd-demo/validation/4b-65k-wide.png",
+      ".pd-demo/validation/4b-65k-narrow.png",
+      ".pd-demo/validation/4b-65k-timeline.png"
+    ],
+    "temporary_viewport_reset": true
+  },
+  "service_restore_latest": {
+    "checked_at": "2026-10-12T08:28:23.896217+00:00",
+    "mac_status": "ready",
+    "linux_status": "ready",
+    "mac_git_revision": "e7ea25a6997394c3061476923cae68f242cb8a37",
+    "linux_git_revision": "5c5bb4c1c3f2933fc9a40b14cc0f6ba02156ff06",
+    "ui_http_status": 200,
+    "exports": {
+      "json": {
+        "status": 200,
+        "bytes": 124102
+      },
+      "csv": {
+        "status": 200,
+        "bytes": 25778
+      },
+      "html": {
+        "status": 200,
+        "bytes": 5031232
+      }
     }
   }
 }
