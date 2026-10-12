@@ -619,6 +619,8 @@ def _html(summary: dict) -> str:
         process_class = "process-status"
         if not isinstance(code, int) or isinstance(code, bool):
             process_label = "Process exit status unknown"
+        elif source.get("status") == "cancelled" and code == 130:
+            process_label = "Cancelled (exit 130); incomplete trials excluded"
         elif code != 0:
             completed = source.get("status") == "completed" and any(
                 candidate["source_id"] == source["source_id"]

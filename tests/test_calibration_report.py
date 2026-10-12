@@ -521,3 +521,37 @@ def test_timeline_headings_identify_run_and_prompt_for_repeated_microbatch(tmp_p
     assert "<td>8192</td>" in measured and "<td>16384</td>" in measured
     assert "Process exit status unknown" in document
     assert "grid-template-columns:minmax(0,1fr)" in document
+
+
+@pytest.mark.parametrize(
+    "report_status,code,expected",
+    [
+        ("cancelled", 130, "Cancelled (exit 130); incomplete trials excluded"),
+        ("cancelled", 139, "Process failed (exit 139)"),
+        ("stopped", 130, "Process failed (exit 130)"),
+        ("completed", 130, "Trials recorded; process cleanup failed (exit 130)"),
+    ],
+)
+def test_only_report_cancelled_and_exit130_have_neutral_cancellation_label(
+    tmp_path, report_status, code, expected
+):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["status"] = report_status
+    raw["candidates"][0]["trials"][-1]["status"] = "cancelled"
+    source.write_text(json.dumps(raw))
+    sidecar = {"container_exit_code": code, "reason": "operator redirection"}
+    (tmp_path / "process-status.json").write_text(json.dumps(sidecar))
+    outputs = render_calibration_reports([source], tmp_path / "cancel-status")
+    document = outputs["html"].read_text()
+    assert expected in document
+    summary = json.loads(outputs["summary_json"].read_text())
+    assert summary["sources"][0]["status"] == report_status
+    assert summary["sources"][0]["process_status"] == sidecar
+    assert summary["trials"][-1]["status"] == "cancelled"
+    assert summary["candidates"][0]["completed_measured_trials"] == 2
+    assert summary["candidates"][0]["measured_median_native_prefill_seconds"] == 15
+    if report_status == "cancelled" and code == 130:
+        assert f"class='process-status'>{expected}</span>" in document
+    else:
+        assert "Cancelled (exit 130)" not in document
