@@ -515,7 +515,13 @@ def _html(summary: dict) -> str:
             font={"size": 12},
             legend={"orientation": "h", "y": -0.22},
         )
-        title = f"{html.escape(timeline['placement'])} · microbatch {timeline['ubatch_size']}"
+        source = sources[timeline["source_id"]]
+        prompt = source.get("prompt_tokens")
+        count = f"{prompt:,}" if isinstance(prompt, int) else "unavailable"
+        title = (
+            f"{source['run_label']} · {html.escape(timeline['placement'])} · "
+            f"{count} prompt tokens · microbatch {timeline['ubatch_size']}"
+        )
         chart = figure.to_html(
             full_html=False,
             include_plotlyjs=False,
@@ -527,6 +533,7 @@ def _html(summary: dict) -> str:
         measured_rows,
         [
             ("run_label", "Run"),
+            ("prompt_tokens", "Prompt tokens"),
             ("placement", "CPU placement"),
             ("ubatch_size", "Microbatch"),
             ("measured_median_native_prefill_tps", "Tokens/s"),

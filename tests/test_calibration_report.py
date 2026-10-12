@@ -496,3 +496,28 @@ def test_incomplete_report_nonzero_exit_not_labelled_post_trial_cleanup(tmp_path
     document = render_calibration_reports([source], tmp_path / "stopped")["html"].read_text()
     assert "Process failed (exit 137)" in document
     assert "process cleanup failed" not in document
+
+
+def test_timeline_headings_identify_run_and_prompt_for_repeated_microbatch(tmp_path):
+    telemetry = tmp_path / "activity.jsonl"
+    telemetry.write_text(
+        '{"columns":["elapsed_ms","phase","gpu_utilization_percent"]}\n'
+        '[0,"measured:0",10]\n[1000,"measured:0",20]\n'
+    )
+    source = save_report(tmp_path, timeline={"jsonl_path": str(telemetry)})
+    raw = json.loads(source.read_text())
+    raw["prompt_tokens"] = 8192
+    raw["candidates"][0]["ubatch_size"] = 8192
+    source.write_text(json.dumps(raw))
+    second = tmp_path / "16k.json"
+    raw["prompt_tokens"] = 16384
+    second.write_text(json.dumps(raw))
+    output = render_calibration_reports([source, second], tmp_path / "timeline-labels")
+    document = output["html"].read_text()
+    assert "Run 1 · CUDA: FFN64 · 8,192 prompt tokens · microbatch 8192</h3>" in document
+    assert "Run 2 · CUDA: FFN64 · 16,384 prompt tokens · microbatch 8192</h3>" in document
+    measured = document.split("<table>", 1)[1].split("</table>", 1)[0]
+    assert "<th>Prompt tokens</th>" in measured
+    assert "<td>8192</td>" in measured and "<td>16384</td>" in measured
+    assert "Process exit status unknown" in document
+    assert "grid-template-columns:minmax(0,1fr)" in document
