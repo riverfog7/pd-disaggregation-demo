@@ -329,6 +329,8 @@ class CalibrationRuntime(LlamaRuntime):
         return [
             *super()._arguments(binary, model_path),
             *tensor_override_arguments(self.tensor_overrides),
+            "--verbosity",
+            "4",
         ]
 
     async def start(self) -> None:
@@ -408,12 +410,12 @@ class CalibrationRuntime(LlamaRuntime):
                     if response.status_code == 200:
                         await self._capture_native_props()
                         observed = effective_from_log(_log_tail(self.log_path))
-                        # Context rounding is allowed; batch and microbatch must match.
-                        validate_effective(observed, self.profile)
                         self._effective_settings = {
                             **(self._effective_settings or {}),
                             "native_log": observed,
                         }
+                        # Context rounding is allowed; batch and microbatch must match.
+                        validate_effective(observed, self.profile)
                         self.startup_ms = elapsed_ms(started)
                         return
                 except httpx.HTTPError:
@@ -464,8 +466,8 @@ class MemoryWatchdog:
                     data["native_read_bytes"] = native.io_counters().read_bytes
                     stat = Path(f"/proc/{process.pid}/stat").read_text().rsplit(")", 1)[1].split()
                     data["native_major_faults"] = int(stat[9])  # proc field 12
-            except psutil.NoSuchProcess:
-                pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as error:
+                data["native_metrics_unavailable"] = f"{type(error).__name__}: {error}"
         return data
 
     def retain(self, sample: dict) -> None:
@@ -750,6 +752,7 @@ async def calibrate(
             pre_runtime = LlamaRuntime(settings, profile, backend)
             arguments = pre_runtime._arguments(binary or Path("llama-server"), model_path)
             arguments.extend(tensor_override_arguments(tensor_overrides))
+            arguments.extend(["--verbosity", "4"])
             candidate["native_arguments"] = arguments
             candidate["preflight"] = preflight(
                 estimate, snapshot, backend, arguments, cgroup_sample(cgroup) if cgroup else None

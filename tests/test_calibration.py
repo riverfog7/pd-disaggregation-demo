@@ -397,3 +397,35 @@ def test_calibration_projection_placement_matches_estimator_and_keeps_worker_cle
         Path("server"), model
     )
     assert list(estimated.arguments) == calls[0]
+
+
+def test_optional_native_process_metrics_access_denied_does_not_abort_guards(tmp_path, monkeypatch):
+    runtime = c.CalibrationRuntime(
+        Settings(work_dir=tmp_path),
+        RuntimeProfile(),
+        "cuda",
+        binary=Path("/unused"),
+        model_path=Path("/unused"),
+        estimate=estimate(),
+    )
+    runtime._process = Owned()
+    watchdog = c.MemoryWatchdog(runtime)
+    snapshot = ResourceSnapshot(
+        platform="linux",
+        cpu_count=4,
+        ram_total_bytes=32 * c.GiB,
+        ram_available_bytes=16 * c.GiB,
+        disk_free_bytes=100 * c.GiB,
+        gpu_free_bytes=4 * c.GiB,
+    )
+    monkeypatch.setattr(c, "capture_resources", lambda _: snapshot)
+
+    def denied(pid):
+        raise c.psutil.AccessDenied(pid)
+
+    monkeypatch.setattr(c.psutil, "Process", denied)
+    sample = watchdog.sample()
+    assert "AccessDenied" in sample["native_metrics_unavailable"]
+    assert sample["gpu_free_bytes"] == 4 * c.GiB
+    native = runtime._arguments(Path("server"), Path("model"))
+    assert native[native.index("--verbosity") + 1] == "4"
