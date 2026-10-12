@@ -1,6 +1,9 @@
 import hashlib
 import json
+import shlex
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -111,7 +114,7 @@ def test_probe_alternates_and_saves_partial_result_after_each_sample(monkeypatch
         original_save(path, report)
         saved.append(json.loads(path.read_text()))
 
-    def transfer(host, direction, size, timeout, expected_digest):
+    def transfer(host, direction, size, timeout, expected_digest, **kwargs):
         order.append(direction)
         failed = len(order) == 2
         return {
@@ -152,3 +155,62 @@ def test_ssh_options_disable_compression_and_connection_reuse():
     ):
         assert option in command
     assert command[-3:] == ["--", "gpu_home", ":"]
+
+
+def test_git_deployed_command_uses_module_path_and_no_inline_script():
+    source = "/repo with spaces/src/pd_disaggregation_demo/link_probe.py"
+    command = link_probe.remote_command("upload", 17, source)
+    assert shlex.split(command) == [
+        "python3",
+        source,
+        "--remote-stream",
+        "upload",
+        "17",
+        str(link_probe.CHUNK_BYTES),
+    ]
+    assert "-c" not in shlex.split(command)
+
+
+@pytest.mark.parametrize("direction", ["download", "upload"])
+def test_git_deployed_module_stream_verifies_source_revision(monkeypatch, direction):
+    source = str(Path(link_probe.__file__).resolve())
+    revision = subprocess.check_output(
+        ["git", "-C", str(Path(source).parent), "rev-parse", "HEAD"], text=True
+    ).strip()
+    monkeypatch.setattr(
+        link_probe,
+        "ssh_command",
+        lambda host, command: [sys.executable, *shlex.split(command)[1:]],
+    )
+    result = link_probe.measure_transfer(
+        "unused",
+        direction,
+        37,
+        5,
+        link_probe.expected_sha256(37),
+        remote_source=source,
+        remote_revision=revision,
+    )
+    assert result["status"] == "completed" and result["verified"]
+    assert result["remote_source_path"] == source
+    assert result["remote_source_revision"] == revision
+
+
+def test_git_deployed_revision_mismatch_fails_verification(monkeypatch):
+    source = str(Path(link_probe.__file__).resolve())
+    monkeypatch.setattr(
+        link_probe,
+        "ssh_command",
+        lambda host, command: [sys.executable, *shlex.split(command)[1:]],
+    )
+    result = link_probe.measure_transfer(
+        "unused",
+        "download",
+        37,
+        5,
+        link_probe.expected_sha256(37),
+        remote_source=source,
+        remote_revision="wrong",
+    )
+    assert result["status"] == "source_revision_mismatch" and not result["verified"]
+    assert result["local_bytes"] == result["remote_bytes"] == 37
