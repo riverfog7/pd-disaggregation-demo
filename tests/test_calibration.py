@@ -424,8 +424,42 @@ def test_optional_native_process_metrics_access_denied_does_not_abort_guards(tmp
         raise c.psutil.AccessDenied(pid)
 
     monkeypatch.setattr(c.psutil, "Process", denied)
+    watchdog.gpu.sample = lambda: {"gpu_free_bytes": 4 * c.GiB}
     sample = watchdog.sample()
     assert "AccessDenied" in sample["native_metrics_unavailable"]
     assert sample["gpu_free_bytes"] == 4 * c.GiB
     native = runtime._arguments(Path("server"), Path("model"))
     assert native[native.index("--verbosity") + 1] == "4"
+
+
+def test_cgroup_pressure_stalls_are_observed_and_missing_files_optional(tmp_path):
+    write_group(tmp_path)
+    (tmp_path / "memory.pressure").write_text(
+        "some avg10=0.5 avg60=0.1 avg300=0.0 total=123456\n"
+        "full avg10=0.2 avg60=0.0 avg300=0.0 total=54321\n"
+    )
+    (tmp_path / "io.pressure").write_text(
+        "some avg10=1.2 avg60=0.5 avg300=0.1 total=987654\n"
+        "full avg10=0.7 avg60=0.2 avg300=0.0 total=765432\n"
+    )
+    sample = c.cgroup_sample(tmp_path)
+    assert sample["pressure"]["memory"]["some_total_us"] == 123456
+    assert sample["pressure"]["io"]["full_total_us"] == 765432
+    assert not c.pressure_reasons({**resources(), "cgroup": sample}, "cuda")
+
+
+def test_cuda_watchdog_never_spawns_gpu_cli_on_sampling_hot_path(tmp_path, monkeypatch):
+    runtime = c.CalibrationRuntime(
+        Settings(work_dir=tmp_path),
+        RuntimeProfile(),
+        "cuda",
+        binary=Path("/unused"),
+        model_path=Path("/unused"),
+        estimate=estimate(),
+    )
+    watchdog = c.MemoryWatchdog(runtime)
+    watchdog.gpu.sample = lambda: {"gpu_free_bytes": 4 * c.GiB, "gpu_utilization_percent": 80}
+    monkeypatch.setattr(c, "capture_resources", lambda _: pytest.fail("sampling must use NVML"))
+    sample = watchdog.sample()
+    assert sample["gpu_utilization_percent"] == 80
+    assert sample["elapsed_ms"] >= 0

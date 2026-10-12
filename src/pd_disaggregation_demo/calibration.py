@@ -30,6 +30,7 @@ import psutil
 
 from .artifacts import delete_artifact, ensure_state_disk_space
 from .benchmarks.runner import _check_result, exact_tokens
+from .calibration_telemetry import NvmlSession, TelemetryRecorder
 from .catalog import ensure_model, get_model
 from .config.settings import Settings
 from .models import GenerationRequest, RuntimeFingerprint, RuntimeProfile
@@ -132,6 +133,19 @@ def cgroup_sample(root: Path) -> dict[str, Any]:
         if node.parent == node:
             break
         node = node.parent
+    pressure = {}
+    for kind in ("memory", "io"):
+        try:
+            pressure[kind] = {
+                fields[0] + "_total_us": int(
+                    next(value[6:] for value in fields[1:] if value.startswith("total="))
+                )
+                for fields in (
+                    line.split() for line in (root / f"{kind}.pressure").read_text().splitlines()
+                )
+            }
+        except (OSError, ValueError, StopIteration):
+            pass
     return {
         "path": str(root),
         "limit_bytes": limit,
@@ -143,6 +157,7 @@ def cgroup_sample(root: Path) -> dict[str, Any]:
         "nonreclaimable_bytes": max(0, current - reclaimable),
         "nonreclaimable_headroom_bytes": min(headrooms) if headrooms else None,
         "events": _key_values(root / "memory.events"),
+        "pressure": pressure,
     }
 
 
@@ -441,7 +456,7 @@ async def stop_owned(runtime: LlamaRuntime) -> None:
 
 
 class MemoryWatchdog:
-    def __init__(self, runtime: CalibrationRuntime):
+    def __init__(self, runtime: CalibrationRuntime, *, telemetry_path: Path | None = None):
         self.runtime = runtime
         runtime.watchdog = self
         self.task: asyncio.Task | None = None
@@ -449,11 +464,29 @@ class MemoryWatchdog:
         self.last: dict = {}
         self.events_before: dict = {}
         self.phase_summary: dict = {"sample_count": 0}
+        self.started = time.monotonic()
+        self.phase = "load"
+        self.gpu = NvmlSession() if runtime.backend == "cuda" else None
+        self.telemetry = TelemetryRecorder(telemetry_path) if telemetry_path else None
+        if self.telemetry:
+            self.telemetry.mark(self.phase, 0)
+
+    def mark_phase(self, phase: str) -> None:
+        self.phase = phase
+        if self.telemetry:
+            self.telemetry.mark(phase, (time.monotonic() - self.started) * 1000)
 
     def sample(self) -> dict:
-        data = capture_resources(self.runtime.settings.work_dir).model_dump(mode="json")
+        if self.gpu:
+            memory = psutil.virtual_memory()
+            data = {
+                "ram_available_bytes": memory.available,
+                "ram_total_bytes": memory.total,
+                **self.gpu.sample(),
+            }
+        else:
+            data = capture_resources(self.runtime.settings.work_dir).model_dump(mode="json")
         data["physical_ram_available_bytes"] = psutil.virtual_memory().available
-        # capture_resources currently measures physical availability; explicitly use it here.
         data["ram_available_bytes"] = data["physical_ram_available_bytes"]
         if self.runtime.cgroup:
             data["cgroup"] = cgroup_sample(self.runtime.cgroup)
@@ -462,18 +495,33 @@ class MemoryWatchdog:
             try:
                 native = psutil.Process(process.pid)
                 data["native_rss_bytes"] = native.memory_info().rss
-                if self.runtime.backend == "cuda":
-                    data["native_read_bytes"] = native.io_counters().read_bytes
-                    stat = Path(f"/proc/{process.pid}/stat").read_text().rsplit(")", 1)[1].split()
-                    data["native_major_faults"] = int(stat[9])  # proc field 12
             except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as error:
-                data["native_metrics_unavailable"] = f"{type(error).__name__}: {error}"
+                data.setdefault("native_metrics_unavailable", f"{type(error).__name__}: {error}")
+            if self.runtime.backend == "cuda":
+                try:
+                    native = psutil.Process(process.pid)
+                    data["native_read_bytes"] = native.io_counters().read_bytes
+                except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as error:
+                    data.setdefault(
+                        "native_metrics_unavailable", f"{type(error).__name__}: {error}"
+                    )
+                try:
+                    stat = Path(f"/proc/{process.pid}/stat").read_text().rsplit(")", 1)[1].split()
+                    data["native_major_faults"] = int(stat[9])
+                    data["native_process_state"] = stat[0]
+                except (OSError, ValueError, IndexError) as error:
+                    data.setdefault(
+                        "native_metrics_unavailable", f"{type(error).__name__}: {error}"
+                    )
+        data["elapsed_ms"] = (time.monotonic() - self.started) * 1000
         return data
 
     def retain(self, sample: dict) -> None:
         self.last = sample
         self._retain_into(self.summary, sample)
         self._retain_into(self.phase_summary, sample)
+        if self.telemetry:
+            self.telemetry.record(sample, self.phase)
 
     def _retain_into(self, summary: dict, sample: dict) -> None:
         summary["sample_count"] += 1
@@ -537,6 +585,8 @@ class MemoryWatchdog:
 
     async def begin(self) -> None:
         # A synchronous initial sample prevents loading before the first guard result.
+        if self.gpu:
+            await asyncio.to_thread(self.gpu.open)
         sample = await asyncio.to_thread(self.sample)
         self.events_before = sample.get("cgroup", {}).get("events", {})
         self.check_sample(sample)
@@ -547,6 +597,10 @@ class MemoryWatchdog:
             self.task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self.task
+        if self.gpu:
+            await asyncio.to_thread(self.gpu.close)
+        if self.telemetry:
+            self.telemetry.close()
 
 
 async def guarded(runtime: CalibrationRuntime, operation: Coroutine, timeout: float):
@@ -723,6 +777,12 @@ async def calibrate(
             "model_path": str(model_path),
             "model_sha256": model.sha256,
             "native_binary": str(binary) if binary else None,
+            "image_id": os.environ.get("PDD_CALIBRATION_IMAGE_ID"),
+            "source_revision": os.environ.get("PDD_CALIBRATION_SOURCE_REVISION", revision),
+            "calibration_source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "telemetry_source_sha256": hashlib.sha256(
+                Path(__file__).with_name("calibration_telemetry.py").read_bytes()
+            ).hexdigest(),
             "cgroup_before": cgroup_sample(cgroup) if cgroup else None,
         }
         for ubatch in ubatches:
@@ -782,7 +842,15 @@ async def calibrate(
                     cgroup=cgroup,
                     tensor_overrides=tensor_overrides,
                 )
-                watchdog = MemoryWatchdog(runtime)
+                telemetry_path = (
+                    output.resolve().parent
+                    / f"{output.stem}.telemetry"
+                    / (f"ubatch-{ubatch}.jsonl")
+                )
+                watchdog = MemoryWatchdog(runtime, telemetry_path=telemetry_path)
+                recorder = watchdog.telemetry
+                assert recorder is not None
+                candidate["gpu_disk_telemetry"] = recorder.describe()
                 candidate["cgroup_before"] = cgroup_sample(cgroup) if cgroup else None
                 try:
                     await watchdog.begin()
@@ -801,6 +869,8 @@ async def calibrate(
                         label = "warmup" if repeat == -1 else "measured"
                         trial = {"kind": label, "repeat": repeat, "status": "running"}
                         candidate["trials"].append(trial)
+                        phase = f"{label}:{repeat}"
+                        watchdog.mark_phase(phase)
                         atomic_report(output, report)
                         watchdog.phase_summary = {"sample_count": 0}
                         before = await asyncio.to_thread(watchdog.sample)
@@ -848,6 +918,21 @@ async def calibrate(
                                 if key in before and key in after
                             }
                             trial["peak_telemetry"] = dict(watchdog.phase_summary)
+                            trial["pressure_stall_delta_us"] = {
+                                f"{kind}_{key}": value
+                                - before.get("cgroup", {})
+                                .get("pressure", {})
+                                .get(kind, {})
+                                .get(key, value)
+                                for kind, values in after.get("cgroup", {})
+                                .get("pressure", {})
+                                .items()
+                                for key, value in values.items()
+                            }
+                            trial["gpu_disk_summary"] = recorder.summarized(
+                                recorder.phases.get(phase, {})
+                            )
+                            candidate["gpu_disk_telemetry"] = recorder.describe()
                             trial["telemetry_cumulative"] = dict(watchdog.summary)
                             atomic_report(output, report)
                         progress(f"ubatch {ubatch}: {label} {repeat + 1} completed")
@@ -872,6 +957,7 @@ async def calibrate(
                         finally:
                             await watchdog.close()
                     candidate["peak_telemetry"] = dict(watchdog.summary)
+                    candidate["gpu_disk_telemetry"] = recorder.describe()
                     candidate["cgroup_after"] = cgroup_sample(cgroup) if cgroup else None
                     log = _log_tail(runtime.log_path)
                     candidate["effective_from_log"] = effective_from_log(log)
