@@ -7,6 +7,7 @@ import io
 import json
 import math
 import os
+import re
 import statistics
 import tempfile
 from collections.abc import Sequence
@@ -53,6 +54,15 @@ def _placement(report: dict) -> str:
     placement = report.get("placement", {})
     profile = report.get("requested_profile", {})
     overrides = placement.get("tensor_overrides", [])
+    output_overrides = []
+    for pattern in overrides:
+        expression, _, buffer = pattern.partition("=")
+        try:
+            if buffer == "CPU" and re.search(expression, "output.weight"):
+                output_overrides.append(pattern)
+        except re.error:
+            pass
+    output_cpu = placement.get("cpu_output_projection") or bool(output_overrides)
     suffix = ""
     projections = [
         name
@@ -64,8 +74,10 @@ def _placement(report: dict) -> str:
     elif projections:
         names = {"attn_qkv": "QKV", "attn_gate": "gate", "ssm_out": "SSM-out"}
         suffix = "+" + "/".join(names[name] for name in projections)
-    elif overrides:
-        suffix = "+" + "; ".join(overrides)
+    elif remaining := [pattern for pattern in overrides if pattern not in output_overrides]:
+        suffix = "+" + "; ".join(remaining)
+    if output_cpu:
+        suffix += "+output"
     count = placement.get("cpu_ffn", profile.get("cpu_ffn", "?"))
     return f"{str(report.get('backend', 'unknown')).upper()}: FFN{count}{suffix}"
 
@@ -207,9 +219,11 @@ def summarize_calibrations(inputs: Sequence[Path]) -> dict:
         if not isinstance(report, dict) or not isinstance(report.get("candidates"), list):
             raise ValueError(f"Not a saved calibration report: {path}")
         source_id, label = f"source-{index + 1}", _placement(report)
+        run_label = f"Run {index + 1}"
         sources.append(
             {
                 "source_id": source_id,
+                "run_label": run_label,
                 "path": str(path.resolve()),
                 "status": report.get("status"),
                 "error": report.get("error"),
@@ -254,7 +268,25 @@ def summarize_calibrations(inputs: Sequence[Path]) -> dict:
             ]
             summary = {
                 "source_id": source_id,
+                "run_label": run_label,
                 "placement": label,
+                "prompt_tokens": report.get("prompt_tokens"),
+                "model_id": candidate.get("requested_profile", {}).get(
+                    "model_id", report.get("requested_profile", {}).get("model_id")
+                ),
+                "cache_type": candidate.get("requested_profile", {}).get(
+                    "cache_type", report.get("requested_profile", {}).get("cache_type")
+                ),
+                "context_size": candidate.get("requested_profile", {}).get(
+                    "context_size", report.get("requested_profile", {}).get("context_size")
+                ),
+                "prompt_sha256": candidate.get("prompt_sha256"),
+                "cgroup_limit_bytes": (
+                    candidate.get("cgroup_before")
+                    or candidate.get("preflight", {}).get("cgroup")
+                    or report.get("environment", {}).get("cgroup_before")
+                    or {}
+                ).get("limit_bytes"),
                 "ubatch_size": candidate.get("ubatch_size"),
                 "status": candidate.get("status"),
                 "completed_measured_trials": len(measured),
@@ -334,24 +366,53 @@ def _html(summary: dict) -> str:
         ("major_faults", "Major page faults", "Faults"),
     )
     ticks = sorted({int(row["ubatch_size"]) for row in summary["candidates"]})
+    sources = {source["source_id"]: source for source in summary["sources"]}
+    caps = {
+        candidate.get("cgroup_limit_bytes")
+        for candidate in summary["candidates"]
+        if candidate.get("cgroup_limit_bytes") is not None
+    }
+    groups: dict[tuple, list[dict]] = {}
+    for candidate in summary["candidates"]:
+        if not candidate["completed_measured_trials"]:
+            continue
+        source = sources[candidate["source_id"]]
+        profile = tuple(
+            candidate.get(key)
+            for key in ("model_id", "cache_type", "prompt_tokens", "context_size", "placement")
+        )
+        environment = source.get("environment", {})
+        key = (
+            *profile,
+            environment.get("engine_revision"),
+            environment.get("model_sha256"),
+            candidate.get("cgroup_limit_bytes"),
+            candidate.get("prompt_sha256"),
+            json.dumps(source.get("placement", {}).get("tensor_overrides", [])),
+        )
+        if any(value is None for value in profile):
+            key = (*key, source["source_id"])
+        groups.setdefault(key, []).append(candidate)
     plots = []
     for metric, title, unit in metrics:
         fig = go.Figure()
-        for source in summary["sources"]:
-            rows = [
-                row
-                for row in summary["candidates"]
-                if row["source_id"] == source["source_id"] and row["completed_measured_trials"]
-            ]
+        for group in groups.values():
+            rows = sorted(group, key=lambda row: row["ubatch_size"])
+            runs = list(dict.fromkeys(row["run_label"] for row in rows))
+            label = " + ".join(runs) if len(summary["sources"]) > 1 else rows[0]["placement"]
+            cap = rows[0].get("cgroup_limit_bytes")
+            if len(caps) > 1 and cap is not None:
+                label += f" · {cap / GiB:g} GiB RAM cap"
             fig.add_trace(
                 go.Scatter(
                     x=[row["ubatch_size"] for row in rows],
                     y=[row.get(f"measured_median_{metric}") for row in rows],
                     mode="lines+markers",
-                    name=html.escape(_placement(source)),
-                    legendgroup=source["source_id"],
+                    name=html.escape(label),
+                    customdata=[[row["run_label"], row["prompt_tokens"]] for row in rows],
                     hovertemplate="Microbatch %{x:.0f}<br>%{y:.3g} "
                     + unit
+                    + "<br>%{customdata[0]} · %{customdata[1]} prompt tokens"
                     + "<extra>%{fullData.name}</extra>",
                 )
             )
@@ -427,6 +488,7 @@ def _html(summary: dict) -> str:
     measured = _table(
         measured_rows,
         [
+            ("run_label", "Run"),
             ("placement", "CPU placement"),
             ("ubatch_size", "Microbatch"),
             ("measured_median_native_prefill_tps", "Tokens/s"),
@@ -491,6 +553,27 @@ def _html(summary: dict) -> str:
         )
     )
     notes = "".join(f"<li>{html.escape(note)}</li>" for note in NOTES)
+    contexts = []
+    for source in summary["sources"]:
+        profile = source.get("requested_profile", {})
+        model = html.escape(str(profile.get("model_id", "model unavailable")))
+        cache = html.escape(str(profile.get("cache_type", "unavailable")))
+        prompt = source.get("prompt_tokens")
+        count = f"{prompt:,}" if isinstance(prompt, int) else "unavailable"
+        source_caps = sorted(
+            {
+                candidate["cgroup_limit_bytes"]
+                for candidate in summary["candidates"]
+                if candidate["source_id"] == source["source_id"]
+                and candidate.get("cgroup_limit_bytes") is not None
+            }
+        )
+        cap_text = " / ".join(f"{cap / GiB:g}" for cap in source_caps)
+        cap_label = f" · {cap_text} GiB RAM cap" if cap_text else ""
+        contexts.append(
+            f"<p class='run-context'><strong>{source['run_label']}</strong> · {model} · "
+            f"{count} prompt tokens · {cache} cache{cap_label}</p>"
+        )
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -505,10 +588,12 @@ def _html(summary: dict) -> str:
         "td,th{padding:9px;border:1px solid #dce2e8;text-align:left;white-space:nowrap}"
         "th{background:#edf2f7;white-space:normal}pre{white-space:pre-wrap;overflow-wrap:anywhere}"
         "details{margin:20px 0}summary{cursor:pointer;font-weight:600}"
+        ".run-context{margin:6px 0;overflow-wrap:anywhere}"
         "@media(max-width:1100px){.chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}"
         "@media(max-width:720px){body{padding:16px}.chart-grid{grid-template-columns:minmax(0,1fr)}}"
         "</style></head><body><main><h1>Microbatch calibration results</h1>"
         "<p>Completed measured trials · median values. Placement labels name CPU weights.</p>"
+        + "".join(contexts)
         + measured
         + comparison
         + (

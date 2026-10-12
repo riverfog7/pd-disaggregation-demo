@@ -262,3 +262,120 @@ def test_measured_results_precede_collapsed_method_and_labels_are_compact(tmp_pa
     assert "GPU % (whole trial)" in document
     assert "they are not prefill-only kernel measurements" in document
     assert "<summary>All candidates, estimated skips, and failures</summary>" in document
+
+
+@pytest.mark.parametrize("output_field", [True, False])
+def test_recurrent_and_output_cpu_placement_are_both_named(tmp_path, output_field):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["placement"].update(
+        cpu_recurrent_projections=True,
+        cpu_output_projection=output_field,
+        tensor_overrides=[] if output_field else [r"^output\.weight$=CPU"],
+    )
+    source.write_text(json.dumps(raw))
+    report = summarize_calibrations([source])
+    assert report["candidates"][0]["placement"] == "CUDA: FFN64+recurrent+output"
+
+
+def test_mixed_prompt_lengths_have_visible_run_context_and_unambiguous_legends(
+    tmp_path, monkeypatch
+):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw.update(
+        prompt_tokens=8192, requested_profile={"model_id": "qwen3.5-27b", "cache_type": "q8_0"}
+    )
+    source.write_text(json.dumps(raw))
+    second = tmp_path / "16k.json"
+    raw["prompt_tokens"] = 16384
+    second.write_text(json.dumps(raw))
+    names = []
+
+    def capture(figure, **options):
+        names.append([trace.name for trace in figure.data])
+        return "<div class='plotly-graph-div'></div>"
+
+    monkeypatch.setattr(go.Figure, "to_html", capture)
+    output = render_calibration_reports([source, second], tmp_path / "mixed")
+    document = output["html"].read_text()
+    assert "8,192 prompt tokens" in document and "16,384 prompt tokens" in document
+    assert "qwen3.5-27b" in document and "q8_0 cache" in document
+    assert document.index("16,384 prompt tokens") < document.index("<table>")
+    assert all(legend == ["Run 1", "Run 2"] for legend in names)
+    summary = json.loads(output["summary_json"].read_text())
+    assert summary["candidates"][0]["prompt_tokens"] == 8192
+    assert summary["candidates"][2]["prompt_tokens"] == 16384
+    assert summary["candidates"][0]["model_id"] == "qwen3.5-27b"
+    assert summary["candidates"][0]["cache_type"] == "q8_0"
+
+
+def test_comparable_reports_connect_sorted_points_but_never_mix_context(tmp_path, monkeypatch):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw.update(
+        prompt_tokens=8192,
+        requested_profile={
+            "model_id": "qwen3.5-27b",
+            "cache_type": "q8_0",
+            "context_size": 8320,
+        },
+    )
+    raw["candidates"][0]["ubatch_size"] = 3840
+    source.write_text(json.dumps(raw))
+    second = tmp_path / "second.json"
+    raw["candidates"][0]["ubatch_size"] = 2048
+    second.write_text(json.dumps(raw))
+    third = tmp_path / "third.json"
+    raw["requested_profile"]["context_size"] = 16512
+    third.write_text(json.dumps(raw))
+    figures = []
+    monkeypatch.setattr(
+        go.Figure,
+        "to_html",
+        lambda figure, **options: figures.append(figure.to_plotly_json()) or "<div></div>",
+    )
+    render_calibration_reports([source, second, third], tmp_path / "grouped")
+    assert len(figures[0]["data"]) == 2
+    connected, separate = figures[0]["data"]
+    assert connected["x"] == [2048, 3840]
+    assert connected["name"] == "Run 2 + Run 1"
+    assert connected["customdata"] == [["Run 2", 8192], ["Run 1", 8192]]
+    assert separate["x"] == [2048]
+    assert separate["name"] == "Run 3"
+
+
+def test_different_actual_ram_caps_and_prompt_hashes_are_separate_and_visible(
+    tmp_path, monkeypatch
+):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw.update(
+        prompt_tokens=8192,
+        requested_profile={
+            "model_id": "qwen3.5-27b",
+            "cache_type": "q8_0",
+            "context_size": 8320,
+        },
+    )
+    raw["candidates"][0].update(prompt_sha256="a" * 64, cgroup_before={"limit_bytes": 8 * GiB})
+    source.write_text(json.dumps(raw))
+    second = tmp_path / "more-ram.json"
+    raw["candidates"][0]["cgroup_before"]["limit_bytes"] = 9 * GiB
+    second.write_text(json.dumps(raw))
+    third = tmp_path / "different-prompt.json"
+    raw["candidates"][0]["prompt_sha256"] = "b" * 64
+    third.write_text(json.dumps(raw))
+    names = []
+    monkeypatch.setattr(
+        go.Figure,
+        "to_html",
+        lambda figure, **options: (
+            names.append([trace.name for trace in figure.data]) or "<div></div>"
+        ),
+    )
+    output = render_calibration_reports([source, second, third], tmp_path / "ram-cap")
+    assert names[0] == ["Run 1 · 8 GiB RAM cap", "Run 2 · 9 GiB RAM cap", "Run 3 · 9 GiB RAM cap"]
+    document = output["html"].read_text()
+    assert "8 GiB RAM cap" in document and "9 GiB RAM cap" in document
+    assert document.index("9 GiB RAM cap") < document.index("<table>")
