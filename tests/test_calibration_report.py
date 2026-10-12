@@ -446,3 +446,53 @@ def test_attention_only_placement_uses_short_label(tmp_path):
     )
     source.write_text(json.dumps(raw))
     assert summarize_calibrations([source])["candidates"][0]["placement"] == "CUDA: FFN64+attention"
+
+
+def test_nonzero_process_exit_visible_without_discarding_completed_timings(tmp_path):
+    source = save_report(tmp_path)
+    sidecar = {"container_exit_code": 139, "oom_killed": False, "image_id": "sha256:abc"}
+    (tmp_path / "process-status.json").write_text(json.dumps(sidecar))
+    output = render_calibration_reports([source], tmp_path / "cleanup-failed")
+    summary = json.loads(output["summary_json"].read_text())
+    assert summary["sources"][0]["process_status"] == sidecar
+    assert summary["sources"][0]["process_status_path"] == str(tmp_path / "process-status.json")
+    assert summary["candidates"][0]["completed_measured_trials"] == 2
+    assert summary["candidates"][0]["measured_median_native_prefill_seconds"] == 15
+    document = output["html"].read_text()
+    message = "Trials recorded; process cleanup failed (exit 139)"
+    assert message in document
+    assert document.index(message) < document.index("<table>")
+    assert "process-failure" in document
+
+
+@pytest.mark.parametrize(
+    "status,expected",
+    [
+        (None, "Process exit status unknown"),
+        ({"container_exit_code": 0}, "Process exited cleanly (exit 0)"),
+        ({"container_exit_code": None}, "Process exit status unknown"),
+    ],
+)
+def test_missing_or_unmeasured_process_exit_is_not_implicitly_clean(tmp_path, status, expected):
+    source = save_report(tmp_path)
+    if status is not None:
+        (tmp_path / "process-status.json").write_text(json.dumps(status))
+    output = render_calibration_reports([source], tmp_path / "exit-status")
+    summary = json.loads(output["summary_json"].read_text())
+    assert summary["sources"][0]["process_status"] == status
+    document = output["html"].read_text()
+    assert expected in document
+    if status is None:
+        assert summary["sources"][0]["process_status_path"] is None
+        assert "Process exited cleanly" not in document
+
+
+def test_incomplete_report_nonzero_exit_not_labelled_post_trial_cleanup(tmp_path):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["status"] = "stopped"
+    source.write_text(json.dumps(raw))
+    (tmp_path / "process-status.json").write_text('{"container_exit_code":137}')
+    document = render_calibration_reports([source], tmp_path / "stopped")["html"].read_text()
+    assert "Process failed (exit 137)" in document
+    assert "process cleanup failed" not in document

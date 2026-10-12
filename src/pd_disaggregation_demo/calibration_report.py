@@ -233,6 +233,10 @@ def summarize_calibrations(inputs: Sequence[Path]) -> dict:
             raise ValueError(f"Not a saved calibration report: {path}")
         source_id, label = f"source-{index + 1}", _placement(report)
         run_label = f"Run {index + 1}"
+        process_path = path.parent / "process-status.json"
+        process_status = json.loads(process_path.read_text()) if process_path.is_file() else None
+        if process_status is not None and not isinstance(process_status, dict):
+            raise ValueError(f"Malformed process status sidecar: {process_path}")
         sources.append(
             {
                 "source_id": source_id,
@@ -244,6 +248,10 @@ def summarize_calibrations(inputs: Sequence[Path]) -> dict:
                 "placement": report.get("placement", {}),
                 "requested_profile": report.get("requested_profile", {}),
                 "environment": report.get("environment", {}),
+                "process_status": process_status,
+                "process_status_path": str(process_path.resolve())
+                if process_status is not None
+                else None,
                 "metadata": {
                     key: value
                     for key, value in report.items()
@@ -600,9 +608,28 @@ def _html(summary: dict) -> str:
         )
         cap_text = " / ".join(f"{cap / GiB:g}" for cap in source_caps)
         cap_label = f" · {cap_text} GiB RAM cap" if cap_text else ""
+        code = (source.get("process_status") or {}).get("container_exit_code")
+        process_class = "process-status"
+        if not isinstance(code, int) or isinstance(code, bool):
+            process_label = "Process exit status unknown"
+        elif code != 0:
+            completed = source.get("status") == "completed" and any(
+                candidate["source_id"] == source["source_id"]
+                and candidate["completed_measured_trials"]
+                for candidate in summary["candidates"]
+            )
+            process_label = (
+                f"Trials recorded; process cleanup failed (exit {code})"
+                if completed
+                else f"Process failed (exit {code})"
+            )
+            process_class += " process-failure"
+        else:
+            process_label = "Process exited cleanly (exit 0)"
         contexts.append(
             f"<p class='run-context'><strong>{source['run_label']}</strong> · {model} · "
-            f"{count} prompt tokens · {cache} cache{cap_label}</p>"
+            f"{count} prompt tokens · {cache} cache{cap_label}"
+            f"<br><span class='{process_class}'>{process_label}</span></p>"
         )
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
@@ -619,6 +646,7 @@ def _html(summary: dict) -> str:
         "th{background:#edf2f7;white-space:normal}pre{white-space:pre-wrap;overflow-wrap:anywhere}"
         "details{margin:20px 0}summary{cursor:pointer;font-weight:600}"
         ".run-context{margin:6px 0;overflow-wrap:anywhere}"
+        ".process-status{font-size:13px;color:#536274}.process-failure{color:#a12a2a}"
         "@media(max-width:1100px){.chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}"
         "@media(max-width:720px){body{padding:16px}.chart-grid{grid-template-columns:minmax(0,1fr)}}"
         "</style></head><body><main><h1>Microbatch calibration results</h1>"
