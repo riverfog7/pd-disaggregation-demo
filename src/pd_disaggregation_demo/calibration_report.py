@@ -28,6 +28,8 @@ NOTES = [
     "CUDA prefill excludes the final canonical token; "
     "native counts and exercised chunks are shown.",
     "Times are native inference/export timers unless a column explicitly says client or wall.",
+    "GPU activity phase summaries cover the full trial, including export and client overhead; "
+    "they are not prefill-only kernel measurements.",
 ]
 
 
