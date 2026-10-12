@@ -310,6 +310,13 @@ def _log_tail(path: Path, maximum: int = 2 * MiB) -> str:
         return handle.read(maximum).decode("utf-8", errors="replace")
 
 
+def validate_engine_port(port: int) -> None:
+    """Reject active listeners while allowing a prior owned server's TIME_WAIT sockets."""
+    with socket.socket() as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind(("127.0.0.1", port))
+
+
 class CalibrationRuntime(LlamaRuntime):
     """Explicit calibration-only admission; normal request/state checks are inherited.
 
@@ -401,8 +408,7 @@ class CalibrationRuntime(LlamaRuntime):
         self._slots_dir.mkdir(parents=True, exist_ok=True)
         self._log = self.log_path.open("ab")
         try:
-            with socket.socket() as probe:
-                probe.bind(("127.0.0.1", self.settings.engine_port))
+            validate_engine_port(self.settings.engine_port)
             self._process = await asyncio.create_subprocess_exec(
                 *arguments, stdout=self._log, stderr=self._log
             )
