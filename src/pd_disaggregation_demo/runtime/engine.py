@@ -37,6 +37,29 @@ def elapsed_ms(start: float) -> float:
     return (time.perf_counter() - start) * 1000
 
 
+async def sample_in_thread(function, *args):
+    """Finish an in-flight resource call before propagating sampler cancellation.
+
+    Cancelling to_thread's await does not stop its worker. Keep the task alive so
+    cleanup cannot shut down NVML while that worker is still using it.
+    """
+    task = asyncio.create_task(asyncio.to_thread(function, *args))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                continue  # Repeated cancellation must not abandon the worker.
+            except Exception:
+                break
+        # Cancellation remains the primary outcome if the sample also failed.
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            task.result()
+        raise
+
+
 class AdmissionError(RuntimeError):
     """Requested model/profile exceeds the measured memory or disk reserves."""
 
@@ -275,7 +298,7 @@ class LlamaRuntime:
     async def _snapshot(self) -> dict:
         from ..resources import capture_resources
 
-        snapshot = await asyncio.to_thread(capture_resources, self.settings.cache_dir)
+        snapshot = await sample_in_thread(capture_resources, self.settings.cache_dir)
         data = snapshot.model_dump(mode="json")
         native_rss = 0
         if self._process and self._process.returncode is None:

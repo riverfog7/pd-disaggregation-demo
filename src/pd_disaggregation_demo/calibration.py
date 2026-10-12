@@ -36,7 +36,7 @@ from .config.settings import Settings
 from .models import GenerationRequest, RuntimeFingerprint, RuntimeProfile
 from .resources import AdmissionResult, capture_resources
 from .runtime.build import ensure_engine
-from .runtime.engine import LlamaRuntime, elapsed_ms
+from .runtime.engine import LlamaRuntime, elapsed_ms, sample_in_thread
 from .runtime.memory_probe import MemoryEstimate, probe_memory, tensor_override_arguments
 
 GiB = 1024**3
@@ -369,7 +369,7 @@ class CalibrationRuntime(LlamaRuntime):
         started = time.perf_counter()
         if self.backend == "cuda":
             self.cgroup = validate_cgroup(self.cgroup)
-        snapshot = await asyncio.to_thread(capture_resources, self.settings.work_dir)
+        snapshot = await sample_in_thread(capture_resources, self.settings.work_dir)
         group = await asyncio.to_thread(cgroup_sample, self.cgroup) if self.cgroup else None
         arguments = self._arguments(self.binary, self.model_path)
         self.calibration_admission = preflight(
@@ -578,7 +578,7 @@ class MemoryWatchdog:
         try:
             while True:
                 started = time.monotonic()
-                sample = await asyncio.to_thread(self.sample)
+                sample = await sample_in_thread(self.sample)
                 self.check_sample(sample)
                 duration = (time.monotonic() - started) * 1000
                 self.summary["sample_duration_max_ms"] = max(
@@ -594,8 +594,8 @@ class MemoryWatchdog:
     async def begin(self) -> None:
         # A synchronous initial sample prevents loading before the first guard result.
         if self.gpu:
-            await asyncio.to_thread(self.gpu.open)
-        sample = await asyncio.to_thread(self.sample)
+            await sample_in_thread(self.gpu.open)
+        sample = await sample_in_thread(self.sample)
         self.events_before = sample.get("cgroup", {}).get("events", {})
         self.check_sample(sample)
         self.task = asyncio.create_task(self.run())
@@ -606,7 +606,7 @@ class MemoryWatchdog:
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await self.task
         if self.gpu:
-            await asyncio.to_thread(self.gpu.close)
+            await sample_in_thread(self.gpu.close)
         if self.telemetry:
             self.telemetry.close()
 
@@ -824,7 +824,7 @@ async def calibrate(
                 tensor_overrides=tensor_overrides,
             )
             candidate["estimate"] = asdict(estimate)
-            snapshot = (await asyncio.to_thread(capture_resources, settings.work_dir)).model_dump(
+            snapshot = (await sample_in_thread(capture_resources, settings.work_dir)).model_dump(
                 mode="json"
             )
             # Arguments use the same production runtime flags even in probe-only mode.
@@ -892,7 +892,7 @@ async def calibrate(
                         watchdog.mark_phase(phase)
                         atomic_report(output, report)
                         watchdog.phase_summary = {"sample_count": 0}
-                        before = await asyncio.to_thread(watchdog.sample)
+                        before = await sample_in_thread(watchdog.sample)
                         trial["telemetry_before"] = before
                         started = time.perf_counter()
                         try:
@@ -903,7 +903,7 @@ async def calibrate(
                                 )
                             )
                             trial["operation_wall_ms"] = elapsed_ms(started)
-                            after = await asyncio.to_thread(watchdog.sample)
+                            after = await sample_in_thread(watchdog.sample)
                             trial["telemetry_after"] = after
                             watchdog.check_sample(after)
                             trial["status"] = "completed"
@@ -923,7 +923,7 @@ async def calibrate(
                                 # Failed requests also keep a final snapshot. Preserve
                                 # their primary error if this diagnostic check fails.
                                 try:
-                                    after = await asyncio.to_thread(watchdog.sample)
+                                    after = await sample_in_thread(watchdog.sample)
                                     trial["telemetry_after"] = after
                                     watchdog.check_sample(after)
                                 except Exception as sample_error:
