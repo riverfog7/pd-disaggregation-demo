@@ -1,10 +1,10 @@
 # Reuse a verified engine/dependency image when only this project's Python source changes.
-# BASE_IMAGE must identify the already validated local image by its immutable ID.
+# Verify the local BASE_IMAGE ID before building and record it as BASE_IMAGE_ID.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 ARG GIT_REVISION
-ARG BASE_IMAGE
+ARG BASE_IMAGE_ID
 LABEL org.opencontainers.image.revision=$GIT_REVISION \
-      org.pd-demo.base-image=$BASE_IMAGE
+      org.pd-demo.base-image-id=$BASE_IMAGE_ID
 COPY --chown=1000:1000 src /app/src
 ENV PYTHONPATH=/app/src PDD_GIT_REVISION=$GIT_REVISION
