@@ -45,6 +45,7 @@ DEFAULT_UBATCHES = (128, 256, 512, 1024, 2048, 4096, 8192)
 STAGING_BYTES = 512 * MiB
 CPU_RECURRENT_PROJECTIONS = (r"^blk\.[0-9]+\.(attn_qkv|attn_gate|ssm_out)\.weight$=CPU",)
 CPU_OUTPUT_PROJECTION = (r"^output\.weight$=CPU",)
+CPU_ATTENTION_PROJECTIONS = (r"^blk\.[0-9]+\.(attn_q|attn_k|attn_v|attn_output)\.weight$=CPU",)
 
 
 class PressureError(RuntimeError):
@@ -713,6 +714,7 @@ async def calibrate(
     cgroup: Path | None = None,
     cpu_recurrent_projections: bool = False,
     cpu_output_projection: bool = False,
+    cpu_attention_projections: bool = False,
     progress: Callable[[str], None] = print,
 ) -> dict:
     if backend not in ("cuda", "metal"):
@@ -735,8 +737,10 @@ async def calibrate(
         cpu_ffn=(64 if backend == "cuda" else 0) if cpu_ffn is None else cpu_ffn,
     )
     settings.work_dir.mkdir(parents=True, exist_ok=True)
-    tensor_overrides = (CPU_RECURRENT_PROJECTIONS if cpu_recurrent_projections else ()) + (
-        CPU_OUTPUT_PROJECTION if cpu_output_projection else ()
+    tensor_overrides = (
+        (CPU_RECURRENT_PROJECTIONS if cpu_recurrent_projections else ())
+        + (CPU_OUTPUT_PROJECTION if cpu_output_projection else ())
+        + (CPU_ATTENTION_PROJECTIONS if cpu_attention_projections else ())
     )
     report = {
         "schema_version": 1,
@@ -752,6 +756,7 @@ async def calibrate(
         "placement": {
             "cpu_recurrent_projections": cpu_recurrent_projections,
             "cpu_output_projection": cpu_output_projection,
+            "cpu_attention_projections": cpu_attention_projections,
             "tensor_overrides": list(tensor_overrides),
             "cpu_ffn": profile.cpu_ffn,
             "output_projection_note": "CPU output-weight placement may compute final logits on CPU"
@@ -1019,6 +1024,11 @@ def main() -> None:
         "--cpu-output-projection",
         action="store_true",
         help="Opt in to mmap CPU output.weight placement; final logits may run on CPU",
+    )
+    parser.add_argument(
+        "--cpu-attention-projections",
+        action="store_true",
+        help="Opt in to mmap CPU placement for full-attention q/k/v/output weights",
     )
     parser.add_argument("--model-id", default="qwen3.5-27b")
     parser.add_argument("--model-path", type=Path)
