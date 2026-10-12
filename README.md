@@ -136,6 +136,8 @@ Admission reserves at least 1 GiB VRAM, 2 GiB Linux host RAM, 6 GiB Mac unified 
 
 The 27B profile exposes existing `--cpu-ffn` placement in Linux launch/deploy and conservative microbatch controls. Its weight distribution has not been calibrated on this 8 GiB GPU/16 GiB host, so admission can refuse it; it is not a claim of a validated 27B streaming configuration. Do not bypass admission to force it. Weight rereads can occur per microbatch, not once per whole prompt.
 
+For the separate opt-in 27B experiment, see the [guarded calibration and report workflow](docs/calibration.md).
+
 Settings use the `PDD_` environment prefix or `.env`. Useful values are `PDD_REMOTE_URL`, `PDD_REMOTE_SSH_HOST`, `PDD_LAN_SSH_HOST`, `PDD_REMOTE_REPO`, `PDD_PORT`, `PDD_ENGINE_PORT`, `PDD_CACHE_DIR`, and `PDD_WORK_DIR`. Cache defaults to `~/.cache/pd-disaggregation-demo`; run state defaults to `.pd-demo`. The native engine is pinned, has one slot, and disables auxiliary RAM prompt cache, checkpoints, speculative decoding and context shift.
 
 ## Validation
