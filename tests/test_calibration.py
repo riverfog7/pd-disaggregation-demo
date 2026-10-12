@@ -463,3 +463,54 @@ def test_cuda_watchdog_never_spawns_gpu_cli_on_sampling_hot_path(tmp_path, monke
     sample = watchdog.sample()
     assert sample["gpu_utilization_percent"] == 80
     assert sample["elapsed_ms"] >= 0
+
+
+async def test_cpu_output_projection_report_and_native_probe_consistency(tmp_path, monkeypatch):
+    from pd_disaggregation_demo.runtime.engine import LlamaRuntime
+
+    model_path = tmp_path / "model.gguf"
+    model_path.touch()
+    settings = Settings(model_path=model_path, work_dir=tmp_path)
+    expected = (*c.CPU_RECURRENT_PROJECTIONS, r"^output\.weight$=CPU")
+    calls = []
+    monkeypatch.setattr(c, "ensure_model", lambda *args: model_path)
+
+    def probe(*args, **kwargs):
+        calls.append(kwargs["tensor_overrides"])
+        return parse_memory_estimate("Host 100 1 1\nMTL0 100 1 1\n")
+
+    monkeypatch.setattr(c, "probe_memory", probe)
+    monkeypatch.setattr(
+        c,
+        "capture_resources",
+        lambda _: ResourceSnapshot(
+            platform="darwin",
+            cpu_count=8,
+            ram_total_bytes=64 * c.GiB,
+            ram_available_bytes=32 * c.GiB,
+            disk_free_bytes=100 * c.GiB,
+            metal_recommended_bytes=48 * c.GiB,
+        ),
+    )
+    report = await c.calibrate(
+        settings,
+        backend="metal",
+        output=tmp_path / "report.json",
+        ubatches=[4096],
+        cpu_recurrent_projections=True,
+        cpu_output_projection=True,
+        probe_only=True,
+        progress=lambda _: None,
+    )
+    assert report["status"] == "completed"
+    assert calls == [expected]
+    assert report["placement"]["cpu_output_projection"]
+    assert "final logits" in report["placement"]["output_projection_note"]
+    native = report["candidates"][0]["native_arguments"]
+    assert [
+        native[i + 1] for i, argument in enumerate(native) if argument == "--override-tensor"
+    ] == list(expected)
+    normal = LlamaRuntime(settings, RuntimeProfile(), "metal")._arguments(
+        Path("server"), model_path
+    )
+    assert "--override-tensor" not in normal

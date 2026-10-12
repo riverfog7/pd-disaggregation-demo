@@ -44,6 +44,7 @@ MiB = 1024**2
 DEFAULT_UBATCHES = (128, 256, 512, 1024, 2048, 4096, 8192)
 STAGING_BYTES = 512 * MiB
 CPU_RECURRENT_PROJECTIONS = (r"^blk\.[0-9]+\.(attn_qkv|attn_gate|ssm_out)\.weight$=CPU",)
+CPU_OUTPUT_PROJECTION = (r"^output\.weight$=CPU",)
 
 
 class PressureError(RuntimeError):
@@ -705,6 +706,7 @@ async def calibrate(
     probe_only: bool = False,
     cgroup: Path | None = None,
     cpu_recurrent_projections: bool = False,
+    cpu_output_projection: bool = False,
     progress: Callable[[str], None] = print,
 ) -> dict:
     if backend not in ("cuda", "metal"):
@@ -727,7 +729,9 @@ async def calibrate(
         cpu_ffn=(64 if backend == "cuda" else 0) if cpu_ffn is None else cpu_ffn,
     )
     settings.work_dir.mkdir(parents=True, exist_ok=True)
-    tensor_overrides = CPU_RECURRENT_PROJECTIONS if cpu_recurrent_projections else ()
+    tensor_overrides = (CPU_RECURRENT_PROJECTIONS if cpu_recurrent_projections else ()) + (
+        CPU_OUTPUT_PROJECTION if cpu_output_projection else ()
+    )
     report = {
         "schema_version": 1,
         "status": "running",
@@ -741,8 +745,12 @@ async def calibrate(
         "trial_timeout_seconds": timeout,
         "placement": {
             "cpu_recurrent_projections": cpu_recurrent_projections,
+            "cpu_output_projection": cpu_output_projection,
             "tensor_overrides": list(tensor_overrides),
             "cpu_ffn": profile.cpu_ffn,
+            "output_projection_note": "CPU output-weight placement may compute final logits on CPU"
+            if cpu_output_projection
+            else None,
         },
         "candidates": [],
         "notes": [
@@ -1000,6 +1008,11 @@ def main() -> None:
         "--cpu-recurrent-projections",
         action="store_true",
         help="Opt in to mmap CPU placement for recurrent projection weights",
+    )
+    parser.add_argument(
+        "--cpu-output-projection",
+        action="store_true",
+        help="Opt in to mmap CPU output.weight placement; final logits may run on CPU",
     )
     parser.add_argument("--model-id", default="qwen3.5-27b")
     parser.add_argument("--model-path", type=Path)
