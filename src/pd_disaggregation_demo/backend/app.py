@@ -73,7 +73,17 @@ def _publish(settings: Settings, artifact) -> ArtifactManifest:
     return manifest
 
 
-def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfile()) -> FastAPI:
+def create_worker_app(
+    settings: Settings,
+    profile: RuntimeProfile = RuntimeProfile(),
+    *,
+    runtime_lifecycle=None,
+) -> FastAPI:
+    """Serve the worker contract using the default or an explicitly owned runtime lifecycle.
+
+    An injected lifecycle must start/close its runtime and own its memory watchdog.
+    The ordinary watchdog assumes fully resident weights and is not used in that case.
+    """
     # Late import lets resource/deployment tooling work without starting an engine.
     from ..runtime.engine import AdmissionError, LlamaRuntime
 
@@ -162,31 +172,40 @@ def create_worker_app(settings: Settings, profile: RuntimeProfile = RuntimeProfi
                     await asyncio.to_thread(shutil.rmtree, directory, True)
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
-        settings.artifacts_dir.mkdir(parents=True, exist_ok=True)
+    async def default_runtime_lifecycle(settings, profile):
         runtime = LlamaRuntime(settings, profile=profile, backend="cuda")
-        app.state.runtime = runtime
-        reaper = None
-        watcher = None
         try:
             await runtime.start()
-            reaper = asyncio.create_task(reap())
-            watcher = asyncio.create_task(watchdog(runtime))
-            yield
+            yield runtime
         finally:
-            if watcher:
-                watcher.cancel()
-                with suppress(asyncio.CancelledError):
-                    await watcher
-            if active and not active.done():
-                active.cancel()
-                with suppress(asyncio.CancelledError):
-                    await active
-            if reaper:
-                reaper.cancel()
-                with suppress(asyncio.CancelledError):
-                    await reaper
             await runtime.close()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        settings.artifacts_dir.mkdir(parents=True, exist_ok=True)
+        lifecycle = runtime_lifecycle or default_runtime_lifecycle
+        async with lifecycle(settings, profile) as runtime:
+            app.state.runtime = runtime
+            reaper = None
+            watcher = None
+            try:
+                reaper = asyncio.create_task(reap())
+                if runtime_lifecycle is None:
+                    watcher = asyncio.create_task(watchdog(runtime))
+                yield
+            finally:
+                if watcher:
+                    watcher.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await watcher
+                if active and not active.done():
+                    active.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await active
+                if reaper:
+                    reaper.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await reaper
 
     app = FastAPI(title="PD CUDA worker", lifespan=lifespan)
 
