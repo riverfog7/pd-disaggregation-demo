@@ -36,12 +36,13 @@ from .models import GenerationRequest, RuntimeFingerprint, RuntimeProfile
 from .resources import AdmissionResult, capture_resources
 from .runtime.build import ensure_engine
 from .runtime.engine import LlamaRuntime, elapsed_ms
-from .runtime.memory_probe import MemoryEstimate, probe_memory
+from .runtime.memory_probe import MemoryEstimate, probe_memory, tensor_override_arguments
 
 GiB = 1024**3
 MiB = 1024**2
 DEFAULT_UBATCHES = (128, 256, 512, 1024, 2048, 4096, 8192)
 STAGING_BYTES = 512 * MiB
+CPU_RECURRENT_PROJECTIONS = (r"^blk\.[0-9]+\.(attn_qkv|attn_gate|ssm_out)\.weight$=CPU",)
 
 
 class PressureError(RuntimeError):
@@ -310,10 +311,12 @@ class CalibrationRuntime(LlamaRuntime):
         model_path: Path,
         estimate: MemoryEstimate,
         cgroup: Path | None = None,
+        tensor_overrides: tuple[str, ...] = (),
     ):
         super().__init__(settings, profile, backend)
         self.binary, self.model_path, self.estimate = binary, model_path, estimate
         self._estimated_profile = self.profile.model_dump()
+        self.tensor_overrides = tensor_overrides
         self.cgroup = cgroup
         self.calibration_admission: dict | None = None
         self.watchdog: MemoryWatchdog | None = None
@@ -321,6 +324,12 @@ class CalibrationRuntime(LlamaRuntime):
     @property
     def log_path(self) -> Path:
         return self.settings.work_dir / f"llama-{self.backend}.log"
+
+    def _arguments(self, binary: Path, model_path: Path) -> list[str]:
+        return [
+            *super()._arguments(binary, model_path),
+            *tensor_override_arguments(self.tensor_overrides),
+        ]
 
     async def start(self) -> None:
         if self.profile.model_dump() != self._estimated_profile:
@@ -639,6 +648,7 @@ async def calibrate(
     timeout: float = 1200,
     probe_only: bool = False,
     cgroup: Path | None = None,
+    cpu_recurrent_projections: bool = False,
     progress: Callable[[str], None] = print,
 ) -> dict:
     if backend not in ("cuda", "metal"):
@@ -661,6 +671,7 @@ async def calibrate(
         cpu_ffn=(64 if backend == "cuda" else 0) if cpu_ffn is None else cpu_ffn,
     )
     settings.work_dir.mkdir(parents=True, exist_ok=True)
+    tensor_overrides = CPU_RECURRENT_PROJECTIONS if cpu_recurrent_projections else ()
     report = {
         "schema_version": 1,
         "status": "running",
@@ -672,6 +683,11 @@ async def calibrate(
         "output_tokens": output_tokens,
         "repeats": repeats,
         "trial_timeout_seconds": timeout,
+        "placement": {
+            "cpu_recurrent_projections": cpu_recurrent_projections,
+            "tensor_overrides": list(tensor_overrides),
+            "cpu_ffn": profile.cpu_ffn,
+        },
         "candidates": [],
         "notes": [
             "Estimated safe is not measured safe. Watchdog sampling cannot guarantee no OOM.",
@@ -718,7 +734,13 @@ async def calibrate(
             report["candidates"].append(candidate)
             atomic_report(output, report)
             estimate = await asyncio.to_thread(
-                probe_memory, settings, profile, backend, model_path, min(120, timeout)
+                probe_memory,
+                settings,
+                profile,
+                backend,
+                model_path,
+                min(120, timeout),
+                tensor_overrides=tensor_overrides,
             )
             candidate["estimate"] = asdict(estimate)
             snapshot = (await asyncio.to_thread(capture_resources, settings.work_dir)).model_dump(
@@ -727,6 +749,8 @@ async def calibrate(
             # Arguments use the same production runtime flags even in probe-only mode.
             pre_runtime = LlamaRuntime(settings, profile, backend)
             arguments = pre_runtime._arguments(binary or Path("llama-server"), model_path)
+            arguments.extend(tensor_override_arguments(tensor_overrides))
+            candidate["native_arguments"] = arguments
             candidate["preflight"] = preflight(
                 estimate, snapshot, backend, arguments, cgroup_sample(cgroup) if cgroup else None
             )
@@ -753,11 +777,13 @@ async def calibrate(
                     model_path=model_path,
                     estimate=estimate,
                     cgroup=cgroup,
+                    tensor_overrides=tensor_overrides,
                 )
                 watchdog = MemoryWatchdog(runtime)
                 candidate["cgroup_before"] = cgroup_sample(cgroup) if cgroup else None
                 try:
                     await watchdog.begin()
+                    candidate["native_arguments"] = runtime._arguments(binary, model_path)
                     candidate["status"] = "loading"
                     atomic_report(output, report)
                     await guarded(runtime, runtime.start(), timeout)
@@ -784,6 +810,7 @@ async def calibrate(
                                     runtime, measure(runtime, tokens, output_tokens), timeout
                                 )
                             )
+                            trial["operation_wall_ms"] = elapsed_ms(started)
                             after = await asyncio.to_thread(watchdog.sample)
                             trial["telemetry_after"] = after
                             watchdog.check_sample(after)
@@ -880,6 +907,11 @@ def main() -> None:
     parser.add_argument("--prompt-tokens", type=int, default=8192)
     parser.add_argument("--output-tokens", type=int, default=128)
     parser.add_argument("--cpu-ffn", type=int)
+    parser.add_argument(
+        "--cpu-recurrent-projections",
+        action="store_true",
+        help="Opt in to mmap CPU placement for recurrent projection weights",
+    )
     parser.add_argument("--model-id", default="qwen3.5-27b")
     parser.add_argument("--model-path", type=Path)
     parser.add_argument("--timeout", type=float, default=1200)

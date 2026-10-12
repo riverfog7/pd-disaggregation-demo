@@ -228,7 +228,7 @@ async def test_probe_only_verifies_model_once_and_never_launches(tmp_path, monke
 
     monkeypatch.setattr(c, "ensure_model", verify)
     monkeypatch.setattr(
-        c, "probe_memory", lambda *a: parse_memory_estimate("Host 100 1 1\nMTL0 100 1 1\n")
+        c, "probe_memory", lambda *a, **kw: parse_memory_estimate("Host 100 1 1\nMTL0 100 1 1\n")
     )
     monkeypatch.setattr(
         c,
@@ -347,3 +347,53 @@ def test_final_sample_cannot_certify_a_violated_reserve(tmp_path):
     assert watchdog.summary["gpu_free_min_bytes"] == 512 * c.MiB
     with pytest.raises(c.PressureError, match="OOM"):
         watchdog.check_sample({**safe, "cgroup": group(events={"oom": 1})})
+
+
+def test_calibration_projection_placement_matches_estimator_and_keeps_worker_clean(
+    tmp_path, monkeypatch
+):
+    import subprocess
+
+    from pd_disaggregation_demo.runtime import memory_probe
+    from pd_disaggregation_demo.runtime.engine import LlamaRuntime
+
+    profile = RuntimeProfile(
+        model_id="qwen3.5-27b",
+        cache_type="q8_0",
+        context_size=8320,
+        batch_size=8192,
+        ubatch_size=512,
+        cpu_ffn=64,
+    )
+    model = tmp_path / "model"
+    settings = Settings(work_dir=tmp_path)
+    calls = []
+
+    def fake_run(arguments, **kwargs):
+        calls.append(arguments)
+        return subprocess.CompletedProcess(arguments, 0, "Host 14000 1 1\nCUDA0 1941 430 525\n", "")
+
+    monkeypatch.setattr(memory_probe.subprocess, "run", fake_run)
+    estimated = memory_probe.estimate_memory(
+        Path("helper"), profile, "cuda", model, tensor_overrides=c.CPU_RECURRENT_PROJECTIONS
+    )
+    runtime = c.CalibrationRuntime(
+        settings,
+        profile,
+        "cuda",
+        binary=Path("server"),
+        model_path=model,
+        estimate=estimated,
+        tensor_overrides=c.CPU_RECURRENT_PROJECTIONS,
+    )
+    native = runtime._arguments(Path("server"), model)
+    override = c.CPU_RECURRENT_PROJECTIONS[0]
+    assert calls[0][calls[0].index("--override-tensor") + 1] == override
+    assert native[native.index("--override-tensor") + 1] == override
+    assert native[native.index("--n-cpu-ffn") + 1] == "64"
+    assert native[native.index("--flash-attn") + 1] == "on"
+    assert "--op-offload" in native
+    assert "--override-tensor" not in LlamaRuntime(settings, profile, "cuda")._arguments(
+        Path("server"), model
+    )
+    assert list(estimated.arguments) == calls[0]

@@ -126,3 +126,22 @@ def test_estimator_must_report_pinned_revision(monkeypatch, tmp_path):
     monkeypatch.setattr(build, "_run", lambda arguments, cwd=None: "wrong revision")
     with pytest.raises(ValueError, match="pinned revision"):
         build.ensure_memory_probe(Settings(), "metal")
+
+
+def test_probe_forwards_calibration_tensor_overrides(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(memory_probe, "ensure_memory_probe", lambda *a: Path("helper"))
+
+    def fake_estimate(*args, **kwargs):
+        calls.append((args, kwargs))
+        return parse_memory_estimate("Host 100 1 1\nCUDA0 100 1 1\n")
+
+    monkeypatch.setattr(memory_probe, "estimate_memory", fake_estimate)
+    overrides = (r"^blk\.[0-9]+\.(attn_qkv|attn_gate|ssm_out)\.weight$=CPU",)
+    settings, profile = Settings(), RuntimeProfile()
+    memory_probe.probe_memory(
+        settings, profile, "cuda", tmp_path / "model", timeout=3, tensor_overrides=overrides
+    )
+    assert calls == [
+        ((Path("helper"), profile, "cuda", tmp_path / "model", 3), {"tensor_overrides": overrides})
+    ]

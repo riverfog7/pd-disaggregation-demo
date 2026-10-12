@@ -14,6 +14,13 @@ MiB = 1024**2
 _ROW = re.compile(r"^(Host|[A-Za-z][A-Za-z0-9_.:-]*)\s+(\d+)\s+(\d+)\s+(\d+)\s*$")
 
 
+def tensor_override_arguments(tensor_overrides: tuple[str, ...]) -> list[str]:
+    """Explicit estimator/calibration overrides; ordinary workers do not opt in."""
+    return [
+        argument for override in tensor_overrides for argument in ("--override-tensor", override)
+    ]
+
+
 @dataclass(frozen=True)
 class MemoryComponents:
     """Conservative component bounds; native output truncates each value to MiB."""
@@ -70,11 +77,14 @@ def estimate_memory(
     backend: Backend,
     model_path: Path,
     timeout: float = 120,
+    *,
+    tensor_overrides: tuple[str, ...] = (),
 ) -> MemoryEstimate:
     """Use an existing helper; read model metadata without inference or weight allocation."""
     arguments = [
         str(binary),
         *model_context_arguments(profile, backend, model_path),
+        *tensor_override_arguments(tensor_overrides),
         "--fit-print",
         "on",
     ]
@@ -98,7 +108,14 @@ def probe_memory(
     backend: Backend,
     model_path: Path,
     timeout: float = 120,
+    *,
+    tensor_overrides: tuple[str, ...] = (),
 ) -> MemoryEstimate:
     return estimate_memory(
-        ensure_memory_probe(settings, backend), profile, backend, model_path, timeout
+        ensure_memory_probe(settings, backend),
+        profile,
+        backend,
+        model_path,
+        timeout,
+        tensor_overrides=tensor_overrides,
     )
