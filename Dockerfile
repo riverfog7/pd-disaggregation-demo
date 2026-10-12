@@ -17,9 +17,10 @@ RUN --mount=type=cache,id=pd-demo-llama-${ENGINE_REVISION}-cuda12.8.1-sm75-ubunt
     -DCMAKE_CUDA_ARCHITECTURES=75 -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_SERVER=ON -DLLAMA_CURL=OFF \
     -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined \
-    && cmake --build /src/llama.cpp/build --target llama-server --parallel "$BUILD_JOBS" \
+    && cmake --build /src/llama.cpp/build --target llama-server llama-fit-params --parallel "$BUILD_JOBS" \
     && mkdir -p /opt/llama/bin /opt/llama/lib \
     && cp /src/llama.cpp/build/bin/llama-server /opt/llama/bin/ \
+    && cp /src/llama.cpp/build/bin/llama-fit-params /opt/llama/bin/ \
     && find /src/llama.cpp/build -name '*.so*' \( -type f -o -type l \) -exec cp -P {} /opt/llama/lib/ \;
 
 FROM ghcr.io/astral-sh/uv:0.9.18 AS uv

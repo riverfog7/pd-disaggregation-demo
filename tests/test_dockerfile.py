@@ -22,7 +22,9 @@ def test_engine_cache_keeps_upstream_linker_policy_and_publishes_in_same_run():
     assert "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined" in command
     assert "-B " + mount["target"] in command
     assert "--target llama-server" in command
+    assert "--target llama-server llama-fit-params" in command
     assert "cp /src/llama.cpp/build/bin/llama-server /opt/llama/bin/" in command
+    assert "cp /src/llama.cpp/build/bin/llama-fit-params /opt/llama/bin/" in command
     assert "find /src/llama.cpp/build -name '*.so*'" in command
     assert "-exec cp -P {} /opt/llama/lib/" in command
     assert command.index("cmake --build") < command.index("cp /src/llama.cpp/build/bin/")

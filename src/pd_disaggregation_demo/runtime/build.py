@@ -1,4 +1,4 @@
-"""Build only the pinned upstream llama-server, with explicit backend selection."""
+"""Build the pinned upstream server and metadata-only memory estimator."""
 
 import json
 import subprocess
@@ -35,6 +35,19 @@ def ensure_engine(settings: Settings, backend: Backend) -> Path:
     stamp = build / "pd-build.json"
     expected = {"revision": ENGINE_REVISION, "backend": backend}
     if binary.is_file() and stamp.is_file() and json.loads(stamp.read_text()) == expected:
+        helper = binary.with_name("llama-fit-params")
+        if not helper.is_file():
+            _run(
+                [
+                    "cmake",
+                    "--build",
+                    str(build),
+                    "--target",
+                    "llama-fit-params",
+                    "-j",
+                    str(settings.build_jobs),
+                ]
+            )
         return binary
     source.mkdir(parents=True, exist_ok=True)
     if not (source / ".git").exists():
@@ -64,7 +77,29 @@ def ensure_engine(settings: Settings, backend: Backend) -> Path:
         flags.append("-DCMAKE_CUDA_ARCHITECTURES=75")
     _run(["cmake", "-S", str(source), "-B", str(build), *flags])
     _run(
-        ["cmake", "--build", str(build), "--target", "llama-server", "-j", str(settings.build_jobs)]
+        [
+            "cmake",
+            "--build",
+            str(build),
+            "--target",
+            "llama-server",
+            "llama-fit-params",
+            "-j",
+            str(settings.build_jobs),
+        ]
     )
     stamp.write_text(json.dumps(expected))
     return binary
+
+
+def ensure_memory_probe(settings: Settings, backend: Backend) -> Path:
+    """Find the estimator beside the pinned server, building cached targets if needed."""
+    helper = ensure_engine(settings, backend).with_name("llama-fit-params")
+    if not helper.is_file():
+        raise FileNotFoundError(
+            f"Pinned llama-fit-params must be installed beside server: {helper}"
+        )
+    version = _run([str(helper), "--version"])
+    if ENGINE_REVISION[:7] not in version:
+        raise ValueError("Configured llama-fit-params does not report the pinned revision")
+    return helper

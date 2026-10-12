@@ -29,6 +29,7 @@ from ..models import (
     RuntimeFingerprint,
     RuntimeProfile,
 )
+from .arguments import model_context_arguments
 from .build import ensure_engine
 
 
@@ -65,47 +66,17 @@ class LlamaRuntime:
         self._restart_pending = False
 
     def _arguments(self, binary: Path, model_path: Path) -> list[str]:
-        p = self.profile
-        args = [
+        return [
             str(binary),
-            "--model",
-            str(model_path),
+            *model_context_arguments(self.profile, self.backend, model_path),
             "--host",
             "127.0.0.1",
             "--port",
             str(self.settings.engine_port),
-            "--parallel",
-            "1",
-            "--ctx-size",
-            str(p.context_size),
-            "--batch-size",
-            str(p.batch_size),
-            "--ubatch-size",
-            str(p.ubatch_size),
-            "--threads",
-            str(p.threads),
-            "--threads-batch",
-            str(p.threads),
-            "--gpu-layers",
-            str(p.gpu_layers),
-            "--n-cpu-ffn",
-            str(p.cpu_ffn),
-            "--cache-type-k",
-            p.cache_type,
-            "--cache-type-v",
-            p.cache_type,
-            "--flash-attn",
-            "on",
-            "--fit",
-            "off",
             "--cache-ram",
             "0",
             "--ctx-checkpoints",
             "0",
-            "--no-repack",
-            "--no-host",
-            "--load-mode",
-            "mmap",
             "--slot-save-path",
             str(self._slots_dir),
             "--slots",
@@ -114,12 +85,7 @@ class LlamaRuntime:
             "--jinja",
             "--spec-type",
             "none",
-            "--device",
-            {"metal": "MTL0", "cuda": "CUDA0", "cpu": "none"}[self.backend],
         ]
-        if self.backend == "cpu":
-            args.extend(["--gpu-layers", "0"])
-        return args
 
     def _process_reusable(self) -> bool:
         # Tests may inject an HTTP transport without an owned subprocess.
