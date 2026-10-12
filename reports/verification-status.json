@@ -4,7 +4,7 @@
   "branch": "codex/pd-demo",
   "overall": "working_demo_validated_on_metal_and_cuda",
   "automated": {
-    "pytest_passed": 210,
+    "pytest_passed": 211,
     "ruff_check": "passed",
     "ruff_format_check": "passed",
     "ty_src": "passed"
@@ -128,5 +128,10 @@
     ],
     "comparison_image": ".pd-demo/validation/final-comparison.png",
     "large_benchmark_samples_unchanged": true
+  },
+  "transport_followup": {
+    "evidence": "transport-rerun-failure.json",
+    "fix": "Fresh worker HTTP connections avoid idle close races through SSH; no mutation retries.",
+    "tcp_regression": "passed"
   }
 }

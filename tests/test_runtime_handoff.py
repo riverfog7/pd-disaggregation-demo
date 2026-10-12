@@ -248,7 +248,7 @@ async def test_remote_download_bounds_and_checksum(tmp_path):
     await remote.close()
 
 
-async def test_bulk_state_connection_closes_without_changing_control_keepalive(tmp_path):
+async def test_bulk_state_download_requests_close_with_custom_transport(tmp_path):
     data = b"native state"
     remote = RemoteWorker(Settings(work_dir=tmp_path))
     await remote._client.aclose()
@@ -284,6 +284,72 @@ async def test_bulk_state_connection_closes_without_changing_control_keepalive(t
         ]
     finally:
         await remote.close()
+
+
+async def test_remote_control_and_bulk_requests_use_fresh_tcp_connections(tmp_path):
+    data = b"native state"
+    requests = []
+    connections = []
+
+    async def handle(reader, writer):
+        connection = len(connections)
+        connections.append(writer)
+        try:
+            while True:
+                raw = await reader.readuntil(b"\r\n\r\n")
+                lines = raw.decode().split("\r\n")
+                method, path, _ = lines[0].split()
+                headers = dict(line.lower().split(": ", 1) for line in lines[1:] if line)
+                await reader.readexactly(int(headers.get("content-length", "0")))
+                requests.append((method, path, connection))
+                body = data if path.endswith("/state") else b"{}"
+                # Even a server offering keepalive must not leave a reusable client socket.
+                writer.write(
+                    b"HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n"
+                    + f"Content-Length: {len(body)}\r\n\r\n".encode()
+                    + body
+                )
+                await writer.drain()
+        except asyncio.IncompleteReadError:
+            pass
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    remote = RemoteWorker(Settings(work_dir=tmp_path, remote_url=f"http://127.0.0.1:{port}"))
+    manifest = ArtifactManifest(
+        model_id="qwen3.5-4b",
+        fingerprint=fingerprint(),
+        token_ids=[1, 2],
+        prefix_tokens=1,
+        source_backend="cuda",
+        state_bytes=len(data),
+        state_sha256=hashlib.sha256(data).hexdigest(),
+    )
+    try:
+        await remote.health()
+        await remote._json("POST", "/configure", {"context_size": 8192})
+        artifact, _ = await remote.download(manifest, fingerprint())
+        assert artifact.state_path.read_bytes() == data
+        await remote.delete(manifest.artifact_id)
+        await remote.health()
+        assert [(method, path) for method, path, _ in requests] == [
+            ("GET", "/health"),
+            ("POST", "/configure"),
+            ("GET", f"/artifacts/{manifest.artifact_id}/state"),
+            ("DELETE", f"/artifacts/{manifest.artifact_id}"),
+            ("GET", "/health"),
+        ]
+        assert len({connection for _, _, connection in requests}) == len(requests)
+    finally:
+        await remote.close()
+        server.close()
+        await server.wait_closed()
+        for writer in connections:
+            writer.close()
+        await asyncio.gather(*(writer.wait_closed() for writer in connections))
 
 
 @pytest.mark.parametrize(

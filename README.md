@@ -155,7 +155,7 @@ uv run python scripts/validate_handoff.py --engine-port 8181 \
 
 Benchmarks use the current SSH route and report its observed state-transfer throughput. The 1Gbps model lets you compare the same measurements under an ideal link assumption without presenting that assumption as a measured LAN speedup.
 
-The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 210 automated tests pass. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware and 27B streaming remains uncalibrated; the 1Gbps comparison remains a model.
+The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 211 automated tests pass. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware and 27B streaming remains uncalibrated; the 1Gbps comparison remains a model.
 
 ## Layout and source workflow
 

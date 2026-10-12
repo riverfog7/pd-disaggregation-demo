@@ -1,0 +1,24 @@
+{
+  "run_id": "a1de20a147f84693aba69eaa275b37b2",
+  "created_at": "2026-10-12T04:26:25.933885Z",
+  "finished_at": "2026-10-12T04:28:40.319080Z",
+  "status": "failed",
+  "measured_revision": "d72c016e3773eba409dcc9518eb98cf873dfe9a6",
+  "successful_samples_before_failure": 10,
+  "errors": [
+    "Remote worker GET /health at http://127.0.0.1:8090 failed: RemoteProtocolError (Server disconnected without sending a response.). Check that the worker API is running and reachable; if using an SSH tunnel, verify its remote destination and worker port."
+  ],
+  "failures": [
+    {
+      "prompt_tokens": 4096,
+      "stage": "warmup",
+      "mode": "split",
+      "error": "Remote worker GET /health at http://127.0.0.1:8090 failed: RemoteProtocolError (Server disconnected without sending a response.). Check that the worker API is running and reachable; if using an SSH tunnel, verify its remote destination and worker port."
+    }
+  ],
+  "raw_report": ".pd-demo/reports/a1de20a147f84693aba69eaa275b37b2.json",
+  "observation": "Both APIs remained ready immediately after failure; no CUDA OOM or worker restart was observed.",
+  "diagnosis": "Consistent with an idle keepalive close reaching the client late through the SSH tunnel.",
+  "fix": "Disable remote HTTP connection reuse, including control requests. Mutations are not retried.",
+  "regression": "A real TCP server offers keepalive; every health/configure/state/delete request must use a fresh connection."
+}

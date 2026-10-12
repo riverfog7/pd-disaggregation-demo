@@ -19,6 +19,9 @@ class RemoteWorker:
             base_url=settings.remote_url.rstrip("/"),
             timeout=settings.request_timeout,
             trust_env=False,
+            # SSH buffering can hide the worker's idle close until a connection is reused.
+            # Fresh control connections avoid that race without retrying mutations.
+            limits=httpx.Limits(max_keepalive_connections=0),
         )
         self.profile: RuntimeProfile | None = None
         self.effective_settings: dict = {}
