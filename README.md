@@ -119,6 +119,29 @@ The History tab can compare the rerun (`db03c2be`) with the original (`33c47212`
 
 An [interrupted attempt](reports/transport-rerun-failure.json) is preserved separately: an idle HTTP connection closed during 4k warmup. Remote control requests now use fresh connections, with no mutation retries. The successful rerun uses that fix for every pair.
 
+## Recorded 27B calibration
+
+The [2026-10-12 calibration evidence](reports/calibration-27b-2026-10-12.json) records real Qwen3.5-27B Q4_K_M prefill and native state export on the RTX 2080. FlashAttention and Q8 cache were enabled. Every request began with an empty prompt cache and evaluated/saved exactly **N−1** tokens. These are native prefill timings; 27B Metal decode and end-to-end split TTFT have not been measured.
+
+| Canonical prompt | Microbatch | Measured repeats | Prefill median | Tokens/s median | Physical reads median | GPU activity median |
+|---:|---:|---:|---:|---:|---:|---:|
+| 8,192 | 2,048 | 1 | 99.14 s | 82.6 | 50.86 GB | 22.6% |
+| 8,192 | 3,840 | 1 | 87.94 s | 93.1 | 37.53 GB | 21.6% |
+| 8,192 | 8,192 | 3 | 32.32 s | 253.4 | 11.57 GB | 49.8% |
+| 16,384 | 16,384 | 3 | 58.46 s | 280.2 | 14.00 GB | 59.3% |
+| 32,768 | 8,192 | 2 | 165.88 s | 197.8 | 54.75 GB | 46.1% |
+| 32,768 | 12,288 | 2 | 146.34 s | 224.0 | 41.94 GB | 52.4% |
+
+The two **32k** configurations share the same prompt IDs, image/source revision, 10.75 GiB Docker RAM cap, four CPU threads and CPU weight placement. Increasing microbatch from 8,192 to 12,288 improved median throughput by **13.2%**, reduced prefill time by **11.8%**, and reduced physical reads by **23.4%** in this run. It changes four native prompt chunks into three. The 12,288 case retained at least **1.58 GiB GPU free memory** and **9.93 GiB host MemAvailable**; both candidates completed with zero cgroup OOM events and a clean process exit. Repetitions were sequential, not randomized; two samples per candidate do not establish a confidence interval or a universal optimum.
+
+GPU activity, disk reads and pressure cover the **whole prefill/export trial**, not isolated kernels. Median full I/O stall time fell from 31.1 to 25.3 seconds, but GPU activity remained around 52%. Storage waits remain significant; these observations do not attribute every idle interval to storage rather than CPU, PCIe or synchronization.
+
+The 8k rows use CPU FFN and recurrent-projection weights with an 8 GiB cap. The 16k/32k rows additionally put attention/output projection weights on CPU, using 9.25/10.75 GiB caps. Do not treat comparisons across those prompt lengths as changes to microbatch alone. The 16k/16,384 run also completed cleanly, with at least 1.07 GiB GPU free. A 65,535-token probe rejected the tested 10,240–16,384 microbatches under the VRAM reserve; its 8,192 warmup was intentionally cancelled when the experiment switched to 32k, so no completed 65k timing is claimed.
+
+Linux mmap already supplies RAM file caching. In a separate identical 8k-profile comparison, increasing the container cap from 8 to 9.25 GiB increased sampled charged file-cache peaks from about 7.34 to 8.59 GiB, but prefill medians were 32.32 and 32.68 seconds: no observed gain in that comparison. At 32k the sampled charged file cache reached 9.75–9.94 GiB. These counters include other files and do not measure a permanently retained weight subset; sequential scans can evict and reread weights. Container swap was disabled; host swap activity is recorded separately.
+
+The earlier 8k/8,192 runs completed their inference trials but exited 139 during GPU telemetry cleanup. Commit `5c5bb4c` fixes the sampler/NVML lifetime race; the later 16k and 32k runs exited 0. An earlier 3,072 candidate failed before inference on TCP port reuse, also fixed. Raw status and failures remain in the evidence rather than being counted as OOMs or hidden. The [calibration guide](docs/calibration.md) gives the guarded Docker recipe, timing definitions and report command. Full interactive graphs and CSVs are saved locally under `.pd-demo/reports/calibration-27b*`.
+
 ## Models, memory and configuration
 
 | Profile | Pinned GGUF size | Purpose |
@@ -134,7 +157,7 @@ Downloads use a single HTTP stream with bounded chunks, resumable partial files 
 
 Admission reserves at least 1 GiB VRAM, 2 GiB Linux host RAM, 6 GiB Mac unified RAM and 20 GiB disk beyond estimated application needs. Weights, KV/recurrent state, compute and export/import buffers count toward the estimate. The Linux worker has equal Docker memory/swap limits and a watchdog that stops **only its own engine** after sustained reserve violations. `/configure` can recover it after pressure is resolved. It never kills unrelated processes.
 
-The 27B profile exposes existing `--cpu-ffn` placement in Linux launch/deploy and conservative microbatch controls. Its weight distribution has not been calibrated on this 8 GiB GPU/16 GiB host, so admission can refuse it; it is not a claim of a validated 27B streaming configuration. Do not bypass admission to force it. Weight rereads can occur per microbatch, not once per whole prompt.
+The 27B profile exposes existing `--cpu-ffn` placement in Linux launch/deploy and conservative microbatch controls. The opt-in calibration above validates specific CUDA prefill/export configurations on this 8 GiB GPU/16 GiB host. Ordinary worker admission remains conservative and can still refuse 27B; do not bypass it. Weight rereads can occur per microbatch, not once per whole prompt. Mac 27B admission was refused under the required 6 GiB reserve at the available-memory snapshot used for this experiment.
 
 For the separate opt-in 27B experiment, see the [guarded calibration and report workflow](docs/calibration.md).
 
@@ -159,7 +182,7 @@ uv run python scripts/validate_handoff.py --engine-port 8181 \
 
 Benchmarks use the current SSH route and report its observed state-transfer throughput. The 1Gbps model lets you compare the same measurements under an ideal link assumption without presenting that assumption as a measured LAN speedup.
 
-The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 211 automated tests pass. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware and 27B streaming remains uncalibrated; the 1Gbps comparison remains a model.
+The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 317 automated tests pass. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware; 27B CUDA prefill/export is calibrated as described above, while its cross-machine TTFT remains unmeasured. The 1Gbps comparison remains a model.
 
 ## Layout and source workflow
 

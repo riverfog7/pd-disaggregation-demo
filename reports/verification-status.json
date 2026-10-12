@@ -4,10 +4,11 @@
   "branch": "codex/pd-demo",
   "overall": "working_demo_validated_on_metal_and_cuda",
   "automated": {
-    "pytest_passed": 211,
+    "pytest_passed": 317,
     "ruff_check": "passed",
     "ruff_format_check": "passed",
-    "ty_src": "passed"
+    "ty_src": "passed",
+    "tested_code_revision": "1aa5732508b5d911c58e8d3ed4fddd69c59cdbb3"
   },
   "native_handoff": {
     "models": [
@@ -107,8 +108,8 @@
   },
   "limitations": [
     "9B profile has not been exercised on real hardware.",
-    "27B CPU-FFN placement remains uncalibrated and can be conservatively refused; no safe27B streaming claim.",
-    "16k,32k and64k benchmark paths are implemented with admission but were not part of this hardware performance run.",
+    "27B CUDA prefill/export has passed the recorded opt-in calibration; ordinary worker admission is unchanged and 27B CUDA-to-Metal TTFT has not been measured.",
+    "32k 27B CUDA prefill was measured; 65,535-token warmup was cancelled by experiment redirection and has no completed timing. Longer paired split benchmarks remain unvalidated.",
     "The1Gbps comparison is an optimistic payload-only model; no real gigabit LAN speedup is claimed.",
     "Memory samples may miss short transients; missing Metal GPU telemetry is not treated as zero."
   ],
@@ -144,5 +145,84 @@
     "evidence": "transport-rerun-failure.json",
     "fix": "Fresh worker HTTP connections avoid idle close races through SSH; no mutation retries.",
     "tcp_regression": "passed"
+  },
+  "updated_at": "2026-10-12T06:52:23.651055+00:00",
+  "tested_code_revision_scope": "Initial full demo acceptance; newer automated and calibration revisions are recorded in their sections.",
+  "calibration_27b": {
+    "report": "calibration-27b-2026-10-12.json",
+    "tested_source_revision": "5c5bb4c1c3f2933fc9a40b14cc0f6ba02156ff06",
+    "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
+    "cuda_prefill_and_native_export": "passed",
+    "cache": "q8_0",
+    "flash_attention": true,
+    "completed_prompt_lengths": [
+      8192,
+      16384,
+      32768
+    ],
+    "largest_exercised_microbatch": 16384,
+    "largest_microbatch_context": "16,384 canonical prompt /16,383 native prefix, with CPU FFN and recurrent/attention/output projections",
+    "32k": {
+      "prompt_tokens": 32768,
+      "native_prefix_tokens": 32767,
+      "microbatches": [
+        8192,
+        12288
+      ],
+      "measured_repeats_each": 2,
+      "warmup_each": 1,
+      "container_ram_bytes": 11542724608,
+      "container_swap_limit_bytes": 0,
+      "container_exit_code": 0,
+      "oom_events": 0,
+      "throughput_gain_percent": 13.235340632490367,
+      "prefill_time_reduction_percent": 11.781102896734163,
+      "physical_read_reduction_percent": 23.388140300268923,
+      "minimum_gpu_free_bytes_for_12288": 1698037760
+    },
+    "sampler_cleanup_fix": "5c5bb4c; later 16k and 32k jobs completed with process exit 0",
+    "intentional_cancellation": "65,535-token warmup and extra 8k RAM trial stopped when user redirected the experiment; exit 130 and partial reports retained",
+    "27b_metal_and_cross_backend_ttft": "not measured; conservative Mac admission skipped under available-memory snapshot",
+    "claim_scope": "Observed sequential small-sample CUDA prefill comparison; no confidence interval, universal maximum or 27B split-TTFT speedup claim",
+    "service_restore": {
+      "checked_at": "2026-10-12T06:52:23.650803+00:00",
+      "health": {
+        "mac": {
+          "status": "ready",
+          "model_id": "qwen3.5-4b",
+          "git_revision": "1aa5732508b5d911c58e8d3ed4fddd69c59cdbb3",
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d"
+        },
+        "linux": {
+          "status": "ready",
+          "model_id": "qwen3.5-4b",
+          "git_revision": "5c5bb4c1c3f2933fc9a40b14cc0f6ba02156ff06",
+          "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d"
+        }
+      },
+      "mac_ui_http_status": 200
+    },
+    "report_browser_validation": {
+      "renderer_revision": "1aa5732508b5d911c58e8d3ed4fddd69c59cdbb3",
+      "report": ".pd-demo/reports/calibration-27b-32k.html",
+      "viewports_verified": [
+        [
+          1280,
+          1000
+        ],
+        [
+          535,
+          850
+        ]
+      ],
+      "responsive_charts": "passed; three columns at 1280px, one column at 535px, no horizontal page overflow",
+      "timeline_and_stage_table": "visually checked; warmup and measured phases separated",
+      "console_errors": [],
+      "temporary_viewport_reset": true,
+      "screenshots": [
+        ".pd-demo/validation/calibration-27b-32k-wide.jpg",
+        ".pd-demo/validation/calibration-27b-32k-narrow.jpg"
+      ]
+    }
   }
 }
