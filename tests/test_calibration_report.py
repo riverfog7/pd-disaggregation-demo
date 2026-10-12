@@ -1,6 +1,7 @@
 import csv
 import json
 
+import plotly.graph_objects as go
 import pytest
 
 from pd_disaggregation_demo.calibration_report import (
@@ -211,3 +212,53 @@ def test_sampler_trial_summary_and_collected_telemetry_directory(tmp_path):
     assert row["gpu_activity_below_20_fraction"] == 0.95
     assert row["memory_full_stall_seconds"] == 0.5
     assert row["io_full_stall_seconds"] == 1
+
+
+def test_independent_metric_charts_use_responsive_config_and_integer_ticks(tmp_path, monkeypatch):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["candidates"][0]["ubatch_size"] = 16384
+    source.write_text(json.dumps(raw))
+    rendered = []
+
+    def capture(figure, **options):
+        rendered.append((figure.to_plotly_json(), options))
+        return "<div class='plotly-graph-div'></div>"
+
+    monkeypatch.setattr(go.Figure, "to_html", capture)
+    output = render_calibration_reports([source], tmp_path / "responsive")
+    assert len(rendered) == 6
+    for figure, options in rendered:
+        assert "xaxis2" not in figure["layout"]
+        axis = figure["layout"]["xaxis"]
+        assert axis["tickmode"] == "array"
+        assert axis["tickvals"] == [8192, 16384]
+        assert axis["ticktext"] == ["8192", "16384"]
+        assert "dtick" not in axis
+        assert not figure["layout"].get("title", {}).get("text")
+        assert options["config"]["responsive"] is True
+    assert rendered[0][1]["include_plotlyjs"] is True
+    assert all(options["include_plotlyjs"] is False for _, options in rendered[1:])
+    document = output["html"].read_text()
+    assert "@media(max-width:720px)" in document
+    assert "grid-template-columns:minmax(0,1fr)" in document
+    assert document.count("class='chart-card'") == 6
+
+
+def test_measured_results_precede_collapsed_method_and_labels_are_compact(tmp_path):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["placement"].update(
+        cpu_recurrent_projections=True,
+        tensor_overrides=[r"^blk\.[0-9]+\.(attn_qkv|attn_gate|ssm_out)\.weight$=CPU"],
+    )
+    source.write_text(json.dumps(raw))
+    output = render_calibration_reports([source], tmp_path / "first-results")
+    document = output["html"].read_text()
+    assert "CUDA: FFN64+recurrent" in document
+    assert document.index("<table>") < document.index("<details>")
+    assert document.index("<div class='chart-grid'>") < document.index("<details>")
+    assert "<details><summary>Method and interpretation</summary><ul>" in document
+    assert "GPU % (whole trial)" in document
+    assert "they are not prefill-only kernel measurements" in document
+    assert "<summary>All candidates, estimated skips, and failures</summary>" in document

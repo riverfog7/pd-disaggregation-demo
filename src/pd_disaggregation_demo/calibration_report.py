@@ -53,18 +53,21 @@ def _placement(report: dict) -> str:
     placement = report.get("placement", {})
     profile = report.get("requested_profile", {})
     overrides = placement.get("tensor_overrides", [])
-    suffix = "; ".join(overrides) if overrides else "default tensor placement"
+    suffix = ""
     projections = [
         name
         for name in ("attn_qkv", "attn_gate", "ssm_out")
         if any(name in pattern for pattern in overrides)
     ]
-    if projections:
-        suffix = "CPU " + ", ".join(projections)
-    return (
-        f"{report.get('backend', 'unknown')} / CPU FFN "
-        f"{placement.get('cpu_ffn', profile.get('cpu_ffn', '?'))} / {suffix}"
-    )
+    if placement.get("cpu_recurrent_projections") or len(projections) == 3:
+        suffix = "+recurrent"
+    elif projections:
+        names = {"attn_qkv": "QKV", "attn_gate": "gate", "ssm_out": "SSM-out"}
+        suffix = "+" + "/".join(names[name] for name in projections)
+    elif overrides:
+        suffix = "+" + "; ".join(overrides)
+    count = placement.get("cpu_ffn", profile.get("cpu_ffn", "?"))
+    return f"{str(report.get('backend', 'unknown')).upper()}: FFN{count}{suffix}"
 
 
 def _timeline(candidate: dict, source_path: Path) -> dict:
@@ -322,33 +325,24 @@ def _table(rows: list[dict], columns: list[tuple[str, str]]) -> str:
 
 
 def _html(summary: dict) -> str:
-    fig = make_subplots(
-        rows=2,
-        cols=3,
-        subplot_titles=(
-            "Native prefill seconds",
-            "Native prefill tokens/s",
-            "GPU free minimum (GiB)",
-            "Host available minimum (GiB)",
-            "Physical disk reads (GiB)",
-            "Major page faults",
-        ),
-    )
     metrics = (
-        "native_prefill_seconds",
-        "native_prefill_tps",
-        "gpu_free_min_gib",
-        "host_available_min_gib",
-        "physical_read_gib",
-        "major_faults",
+        ("native_prefill_tps", "Prefill throughput", "Tokens/s"),
+        ("native_prefill_seconds", "Prefill duration", "Seconds"),
+        ("gpu_free_min_gib", "GPU free memory minimum", "GiB"),
+        ("host_available_min_gib", "Host available memory minimum", "GiB"),
+        ("physical_read_gib", "Physical disk reads", "GiB"),
+        ("major_faults", "Major page faults", "Faults"),
     )
-    for source in summary["sources"]:
-        rows = [
-            row
-            for row in summary["candidates"]
-            if row["source_id"] == source["source_id"] and row["completed_measured_trials"]
-        ]
-        for index, metric in enumerate(metrics):
+    ticks = sorted({int(row["ubatch_size"]) for row in summary["candidates"]})
+    plots = []
+    for metric, title, unit in metrics:
+        fig = go.Figure()
+        for source in summary["sources"]:
+            rows = [
+                row
+                for row in summary["candidates"]
+                if row["source_id"] == source["source_id"] and row["completed_measured_trials"]
+            ]
             fig.add_trace(
                 go.Scatter(
                     x=[row["ubatch_size"] for row in rows],
@@ -356,19 +350,35 @@ def _html(summary: dict) -> str:
                     mode="lines+markers",
                     name=html.escape(_placement(source)),
                     legendgroup=source["source_id"],
-                    showlegend=index == 0,
-                ),
-                row=index // 3 + 1,
-                col=index % 3 + 1,
+                    hovertemplate="Microbatch %{x:.0f}<br>%{y:.3g} "
+                    + unit
+                    + "<extra>%{fullData.name}</extra>",
+                )
             )
-    fig.update_xaxes(title_text="Configured microbatch", type="log", dtick=0.30103)
-    fig.update_layout(
-        height=720,
-        template="plotly_white",
-        title="Completed measured trials · median values",
-        legend={"orientation": "h", "y": -0.22},
-    )
-    plots = [fig.to_html(full_html=False, include_plotlyjs=True)]
+        fig.update_xaxes(
+            title_text="Configured microbatch",
+            type="log",
+            tickmode="array",
+            tickvals=ticks,
+            ticktext=[str(value) for value in ticks],
+        )
+        fig.update_yaxes(title_text=unit)
+        fig.update_layout(
+            autosize=True,
+            height=340,
+            template="plotly_white",
+            margin={"l": 62, "r": 12, "t": 12, "b": 95},
+            font={"size": 12},
+            legend={"orientation": "h", "y": -0.34},
+        )
+        chart = fig.to_html(
+            full_html=False,
+            include_plotlyjs=not plots,
+            config={"responsive": True, "displayModeBar": False},
+        )
+        plots.append(f"<section class='chart-card'><h3>{html.escape(title)}</h3>{chart}</section>")
+    comparison = "<div class='chart-grid'>" + "".join(plots) + "</div>"
+    timelines = []
     for timeline in summary["timelines"]:
         if not timeline["available"]:
             continue
@@ -401,10 +411,32 @@ def _html(summary: dict) -> str:
         figure.update_layout(
             height=580,
             template="plotly_white",
-            title=f"{html.escape(timeline['placement'])} · ubatch {timeline['ubatch_size']}",
+            autosize=True,
+            margin={"l": 62, "r": 16, "t": 42, "b": 110},
+            font={"size": 12},
+            legend={"orientation": "h", "y": -0.22},
         )
-        plots.append(figure.to_html(full_html=False, include_plotlyjs=False))
-    overview = _table(
+        title = f"{html.escape(timeline['placement'])} · microbatch {timeline['ubatch_size']}"
+        chart = figure.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            config={"responsive": True, "displayModeBar": False},
+        )
+        timelines.append(f"<section class='timeline-card'><h3>{title}</h3>{chart}</section>")
+    measured_rows = [row for row in summary["candidates"] if row["completed_measured_trials"]]
+    measured = _table(
+        measured_rows,
+        [
+            ("placement", "CPU placement"),
+            ("ubatch_size", "Microbatch"),
+            ("measured_median_native_prefill_tps", "Tokens/s"),
+            ("measured_median_native_prefill_seconds", "Prefill s"),
+            ("measured_median_gpu_activity_time_weighted_percent", "GPU % (whole trial)"),
+        ],
+    )
+    if not measured_rows:
+        measured = "<p>No completed measured trials in these reports.</p>"
+    candidates = _table(
         summary["candidates"],
         [
             ("placement", "Placement"),
@@ -463,20 +495,36 @@ def _html(summary: dict) -> str:
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<title>Microbatch calibration evidence</title><style>"
-        "body{font:15px system-ui;margin:28px;color:#172435}h1{font-size:25px}"
+        "body{font:15px system-ui;margin:0;padding:24px;color:#172435}"
+        "main{max-width:1440px;margin:auto}h1{font-size:25px;margin:0 0 12px}"
+        "h2{font-size:20px;margin:26px 0 10px}h3{font-size:16px;margin:12px 14px}"
+        ".chart-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}"
+        ".chart-card,.timeline-card{min-width:0;border:1px solid #dce2e8;border-radius:8px}"
+        ".timeline-card{margin:16px 0}.plotly-graph-div{max-width:100%}"
         ".scroll{overflow:auto}table{border-collapse:collapse;font-size:13px;margin:20px 0}"
         "td,th{padding:9px;border:1px solid #dce2e8;text-align:left;white-space:nowrap}"
-        "th{background:#edf2f7}pre{white-space:pre-wrap;overflow-wrap:anywhere}"
-        "</style></head><body><h1>Microbatch calibration evidence</h1><ul>"
-        + notes
-        + "</ul>"
-        + overview
-        + "".join(plots)
-        + "<h2>Startup, warmup, measured inference, and export</h2>"
+        "th{background:#edf2f7;white-space:normal}pre{white-space:pre-wrap;overflow-wrap:anywhere}"
+        "details{margin:20px 0}summary{cursor:pointer;font-weight:600}"
+        "@media(max-width:1100px){.chart-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}"
+        "@media(max-width:720px){body{padding:16px}.chart-grid{grid-template-columns:minmax(0,1fr)}}"
+        "</style></head><body><main><h1>Microbatch calibration results</h1>"
+        "<p>Completed measured trials · median values. Placement labels name CPU weights.</p>"
+        + measured
+        + comparison
+        + (
+            "<h2>GPU activity and disk reads · whole trial</h2>" + "".join(timelines)
+            if timelines
+            else ""
+        )
+        + "<details><summary>All candidates, estimated skips, and failures</summary>"
+        + candidates
+        + "</details><details><summary>Startup, warmup, measured inference, and export</summary>"
         + trials
-        + "<details><summary>Source metadata and telemetry coverage</summary><pre>"
+        + "</details><details><summary>Method and interpretation</summary><ul>"
+        + notes
+        + "</ul></details><details><summary>Source metadata and telemetry coverage</summary><pre>"
         + evidence
-        + "</pre></details></body></html>"
+        + "</pre></details></main></body></html>"
     )
 
 
