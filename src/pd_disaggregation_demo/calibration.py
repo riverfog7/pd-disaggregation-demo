@@ -313,6 +313,7 @@ class CalibrationRuntime(LlamaRuntime):
     ):
         super().__init__(settings, profile, backend)
         self.binary, self.model_path, self.estimate = binary, model_path, estimate
+        self._estimated_profile = self.profile.model_dump()
         self.cgroup = cgroup
         self.calibration_admission: dict | None = None
         self.watchdog: MemoryWatchdog | None = None
@@ -322,6 +323,8 @@ class CalibrationRuntime(LlamaRuntime):
         return self.settings.work_dir / f"llama-{self.backend}.log"
 
     async def start(self) -> None:
+        if self.profile.model_dump() != self._estimated_profile:
+            raise RuntimeError("Calibration estimate is bound to its original profile; probe again")
         if self._client and self._process_reusable():
             return
         if not self.watchdog or not self.watchdog.task or self.watchdog.task.done():
@@ -489,27 +492,27 @@ class MemoryWatchdog:
             key = "cgroup_nonreclaimable_headroom_min_bytes"
             summary[key] = min(value, summary.get(key, value))
 
+    def check_sample(self, sample: dict) -> None:
+        self.retain(sample)
+        reasons = pressure_reasons(sample, self.runtime.backend)
+        events = sample.get("cgroup", {}).get("events", {})
+        if any(
+            events.get(key, 0) > self.events_before.get(key, 0)
+            for key in ("oom", "oom_kill", "oom_group_kill")
+        ):
+            reasons.append("Cgroup OOM event counter increased")
+        if self.runtime.log_path.exists() and self.runtime.log_path.stat().st_size > 32 * MiB:
+            reasons.append("Native diagnostic log exceeded its 32 MiB budget")
+        if reasons:
+            self.summary["pressure"] = reasons
+            raise PressureError("; ".join(reasons))
+
     async def run(self) -> None:
         try:
             while True:
                 started = time.monotonic()
                 sample = await asyncio.to_thread(self.sample)
-                self.retain(sample)
-                reasons = pressure_reasons(sample, self.runtime.backend)
-                events = sample.get("cgroup", {}).get("events", {})
-                if any(
-                    events.get(key, 0) > self.events_before.get(key, 0)
-                    for key in ("oom", "oom_kill", "oom_group_kill")
-                ):
-                    reasons.append("Cgroup OOM event counter increased")
-                if (
-                    self.runtime.log_path.exists()
-                    and self.runtime.log_path.stat().st_size > 32 * MiB
-                ):
-                    reasons.append("Native diagnostic log exceeded its 32 MiB budget")
-                if reasons:
-                    self.summary["pressure"] = reasons
-                    raise PressureError("; ".join(reasons))
+                self.check_sample(sample)
                 duration = (time.monotonic() - started) * 1000
                 self.summary["sample_duration_max_ms"] = max(
                     duration, self.summary.get("sample_duration_max_ms", 0)
@@ -523,11 +526,9 @@ class MemoryWatchdog:
 
     async def begin(self) -> None:
         # A synchronous initial sample prevents loading before the first guard result.
-        self.retain(await asyncio.to_thread(self.sample))
-        self.events_before = self.last.get("cgroup", {}).get("events", {})
-        reasons = pressure_reasons(self.last, self.runtime.backend)
-        if reasons:
-            raise PressureError("; ".join(reasons))
+        sample = await asyncio.to_thread(self.sample)
+        self.events_before = sample.get("cgroup", {}).get("events", {})
+        self.check_sample(sample)
         self.task = asyncio.create_task(self.run())
 
     async def close(self) -> None:
@@ -774,15 +775,18 @@ async def calibrate(
                         atomic_report(output, report)
                         watchdog.phase_summary = {"sample_count": 0}
                         before = await asyncio.to_thread(watchdog.sample)
-                        watchdog.retain(before)
                         trial["telemetry_before"] = before
                         started = time.perf_counter()
                         try:
+                            watchdog.check_sample(before)
                             trial.update(
                                 await guarded(
                                     runtime, measure(runtime, tokens, output_tokens), timeout
                                 )
                             )
+                            after = await asyncio.to_thread(watchdog.sample)
+                            trial["telemetry_after"] = after
+                            watchdog.check_sample(after)
                             trial["status"] = "completed"
                         except BaseException as error:
                             trial.update(
@@ -796,9 +800,18 @@ async def calibrate(
                             raise
                         finally:
                             trial["wall_ms"] = elapsed_ms(started)
-                            after = await asyncio.to_thread(watchdog.sample)
-                            watchdog.retain(after)
-                            trial["telemetry_after"] = after
+                            if "telemetry_after" not in trial:
+                                # Failed requests also keep a final snapshot. Preserve
+                                # their primary error if this diagnostic check fails.
+                                try:
+                                    after = await asyncio.to_thread(watchdog.sample)
+                                    trial["telemetry_after"] = after
+                                    watchdog.check_sample(after)
+                                except Exception as sample_error:
+                                    trial["final_sample_error"] = str(sample_error)
+                                    after = watchdog.last
+                            else:
+                                after = trial["telemetry_after"]
                             trial["io_delta"] = {
                                 key: after[key] - before[key]
                                 for key in ("native_read_bytes", "native_major_faults")
@@ -820,9 +833,14 @@ async def calibrate(
                     candidate["error"] = f"{type(error).__name__}: {error}"
                     raise
                 finally:
-                    await stop_owned(runtime)
-                    await runtime.close()
-                    await watchdog.close()
+                    # Even a failed native/client close must not strand the sampler.
+                    try:
+                        await stop_owned(runtime)
+                    finally:
+                        try:
+                            await runtime.close()
+                        finally:
+                            await watchdog.close()
                     candidate["peak_telemetry"] = dict(watchdog.summary)
                     candidate["cgroup_after"] = cgroup_sample(cgroup) if cgroup else None
                     log = _log_tail(runtime.log_path)

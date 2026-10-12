@@ -314,3 +314,36 @@ async def test_any_cgroup_oom_event_stops_escalation(tmp_path):
     with pytest.raises(c.PressureError, match="OOM"):
         await watchdog.run()
     assert runtime._process.terminated
+
+
+async def test_runtime_estimate_cannot_be_reused_after_profile_change(tmp_path):
+    runtime = c.CalibrationRuntime(
+        Settings(work_dir=tmp_path),
+        RuntimeProfile(),
+        "metal",
+        binary=Path("/unused"),
+        model_path=Path("/unused"),
+        estimate=estimate(),
+    )
+    runtime.profile = runtime.profile.model_copy(update={"ubatch_size": 256})
+    with pytest.raises(RuntimeError, match="original profile"):
+        await runtime.start()
+
+
+def test_final_sample_cannot_certify_a_violated_reserve(tmp_path):
+    runtime = c.CalibrationRuntime(
+        Settings(work_dir=tmp_path),
+        RuntimeProfile(),
+        "cuda",
+        binary=Path("/unused"),
+        model_path=Path("/unused"),
+        estimate=estimate(),
+    )
+    watchdog = c.MemoryWatchdog(runtime)
+    safe = {**resources(), "cgroup": group(events={"oom": 0})}
+    watchdog.check_sample(safe)
+    with pytest.raises(c.PressureError, match="GPU"):
+        watchdog.check_sample({**safe, "gpu_free_bytes": 512 * c.MiB})
+    assert watchdog.summary["gpu_free_min_bytes"] == 512 * c.MiB
+    with pytest.raises(c.PressureError, match="OOM"):
+        watchdog.check_sample({**safe, "cgroup": group(events={"oom": 1})})
