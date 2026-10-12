@@ -121,11 +121,11 @@ def test_configured_server_missing_helper_has_explicit_error(monkeypatch, tmp_pa
 
 def test_estimator_must_report_pinned_revision(monkeypatch, tmp_path):
     server = tmp_path / "llama-server"
-    server.with_name("llama-fit-params").touch()
+    server.with_name(build.SERVER_PROBE_NAME).touch()
     monkeypatch.setattr(build, "ensure_engine", lambda settings, backend: server)
     monkeypatch.setattr(build, "_run", lambda arguments, cwd=None: "wrong revision")
     with pytest.raises(ValueError, match="pinned revision"):
-        build.ensure_memory_probe(Settings(), "metal")
+        build.ensure_memory_probe(Settings(engine_binary=server), "metal")
 
 
 def test_probe_forwards_calibration_tensor_overrides(monkeypatch, tmp_path):
@@ -145,3 +145,136 @@ def test_probe_forwards_calibration_tensor_overrides(monkeypatch, tmp_path):
     assert calls == [
         ((Path("helper"), profile, "cuda", tmp_path / "model", 3), {"tensor_overrides": overrides})
     ]
+
+
+def server_provenance(profile, **overrides):
+    return {
+        "kind": build.SERVER_PROBE_KIND,
+        "engine_revision": ENGINE_REVISION,
+        "linked_commit": ENGINE_REVISION[:9],
+        "probe_source_sha256": build.server_probe_source_sha256(),
+        "parallel": 1,
+        "n_outputs_max": 1,
+        "n_outputs_max_per_seq": 1,
+        "n_rs_seq": 0,
+        "n_ctx": profile.context_size,
+        "n_batch": profile.batch_size,
+        "n_ubatch": profile.ubatch_size,
+        **overrides,
+    }
+
+
+def test_server_probe_uses_explicit_non_speculative_command_and_provenance(monkeypatch):
+    profile = RuntimeProfile(context_size=8320, batch_size=8192, ubatch_size=8192)
+    calls = []
+    metadata = server_provenance(profile)
+
+    def run(arguments, **kwargs):
+        calls.append(arguments)
+        return subprocess.CompletedProcess(
+            arguments,
+            0,
+            "CUDA0 1900 430 2500\nHost 14000 0 14\n",
+            "PD_SERVER_FIT_PARAMS " + json.dumps(metadata) + "\n",
+        )
+
+    monkeypatch.setattr(memory_probe.subprocess, "run", run)
+    estimate = estimate_memory(
+        Path(build.SERVER_PROBE_NAME),
+        profile,
+        "cuda",
+        Path("model"),
+        tensor_overrides=(r"^output\.weight$=CPU",),
+    )
+    args = calls[0]
+    assert args[args.index("--spec-type") + 1] == "none"
+    assert args[args.index("--fit") + 1] == "off"
+    assert args[args.index("--fit-print") + 1] == "on"
+    assert args[args.index("--override-tensor") + 1] == r"^output\.weight$=CPU"
+    assert estimate.provenance["n_outputs_max"] == 1
+    assert estimate.provenance["kind"] == build.SERVER_PROBE_KIND
+    assert estimate.provenance["probe_source_sha256"] == build.server_probe_source_sha256()
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"n_outputs_max": 8192},
+        {"n_outputs_max_per_seq": 2},
+        {"parallel": 4},
+        {"n_rs_seq": 8},
+        {"engine_revision": "wrong"},
+        {"linked_commit": "wrong"},
+        {"probe_source_sha256": "stale"},
+        {"n_ubatch": 512},
+        {"kind": "generic-fit-params"},
+    ],
+)
+def test_server_probe_rejects_wrong_context_or_provenance(monkeypatch, overrides):
+    profile = RuntimeProfile()
+    metadata = server_provenance(profile, **overrides)
+    monkeypatch.setattr(
+        memory_probe.subprocess,
+        "run",
+        lambda arguments, **kwargs: subprocess.CompletedProcess(
+            arguments,
+            0,
+            "CUDA0 1 2 3\nHost 4 5 6\n",
+            "PD_SERVER_FIT_PARAMS " + json.dumps(metadata) + "\n",
+        ),
+    )
+    with pytest.raises(ValueError, match="provenance|libraries"):
+        estimate_memory(Path(build.SERVER_PROBE_NAME), profile, "cuda", Path("model"))
+
+
+def test_server_probe_does_not_accept_rows_without_provenance(monkeypatch):
+    monkeypatch.setattr(
+        memory_probe.subprocess,
+        "run",
+        lambda arguments, **kwargs: subprocess.CompletedProcess(
+            arguments, 0, "CUDA0 1 2 3\nHost 4 5 6\n", ""
+        ),
+    )
+    with pytest.raises(ValueError, match="provenance"):
+        estimate_memory(Path(build.SERVER_PROBE_NAME), RuntimeProfile(), "cuda", Path("model"))
+
+
+def test_server_probe_cached_build_adds_only_its_target(monkeypatch, tmp_path):
+    settings = Settings(cache_dir=tmp_path)
+    directory = tmp_path / "engines" / ENGINE_REVISION / "build" / "metal"
+    server = directory / "bin" / "llama-server"
+    server.parent.mkdir(parents=True)
+    server.write_bytes(b"unchanged-server")
+    helper = server.with_name(build.SERVER_PROBE_NAME)
+    calls = []
+    monkeypatch.setattr(build, "ensure_engine", lambda *_: server)
+
+    def run(arguments, cwd=None):
+        calls.append(arguments)
+        if arguments[:2] == ["cmake", "--build"]:
+            helper.touch()
+        if "--version" in arguments:
+            return (
+                f"{build.SERVER_PROBE_KIND} engine={ENGINE_REVISION} "
+                f"linked_commit={ENGINE_REVISION[:9]} "
+                f"source_sha256={build.server_probe_source_sha256()}"
+            )
+        return ""
+
+    monkeypatch.setattr(build, "_run", run)
+    assert build.ensure_memory_probe(settings, "metal") == helper
+    assert len(calls) == 3
+    assert calls[0][-1] == f"-DCMAKE_PROJECT_INCLUDE={build.SERVER_PROBE_SOURCE / 'inject.cmake'}"
+    assert calls[1] == [
+        "cmake",
+        "--build",
+        str(directory),
+        "--target",
+        build.SERVER_PROBE_NAME,
+        "-j",
+        str(settings.build_jobs),
+    ]
+    assert server.read_bytes() == b"unchanged-server"
+    calls.clear()
+    assert build.ensure_memory_probe(settings, "metal") == helper
+    assert calls == [[str(helper), "--version"]]

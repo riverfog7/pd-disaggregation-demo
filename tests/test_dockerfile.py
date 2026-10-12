@@ -34,3 +34,14 @@ def test_engine_cache_keeps_upstream_linker_policy_and_publishes_in_same_run():
 
     syntax = subprocess.run(["bash", "-n"], input=command, text=True, capture_output=True)
     assert syntax.returncode == 0, syntax.stderr
+
+
+def test_server_context_probe_is_built_and_published_alongside_generic_probe():
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert (
+        "COPY src/pd_disaggregation_demo/runtime/native/server_fit /src/pd-server-fit-params"
+        in dockerfile
+    )
+    assert "-DCMAKE_PROJECT_INCLUDE=/src/pd-server-fit-params/inject.cmake" in dockerfile
+    assert "--target llama-server llama-fit-params pd-server-fit-params" in dockerfile
+    assert "cp /src/llama.cpp/build/bin/pd-server-fit-params /opt/llama/bin/" in dockerfile

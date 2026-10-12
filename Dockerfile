@@ -11,16 +11,19 @@ RUN git init /src/llama.cpp && cd /src/llama.cpp \
     && git fetch --depth 1 origin "$ENGINE_REVISION" && git checkout --detach FETCH_HEAD \
     && test "$(git rev-parse HEAD)" = "$ENGINE_REVISION"
 # Keep failed compilation outputs across retries; bump the config suffix when changing ABI/build flags.
+COPY src/pd_disaggregation_demo/runtime/native/server_fit /src/pd-server-fit-params
 RUN --mount=type=cache,id=pd-demo-llama-${ENGINE_REVISION}-cuda12.8.1-sm75-ubuntu24.04-release-nativeoff-cudaon-testsoff-serveron-curloff-allowshlib-v1,target=/src/llama.cpp/build,sharing=locked \
     cmake -S /src/llama.cpp -B /src/llama.cpp/build -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DGGML_NATIVE=OFF -DGGML_CUDA=ON \
     -DCMAKE_CUDA_ARCHITECTURES=75 -DLLAMA_BUILD_TESTS=OFF \
     -DLLAMA_BUILD_SERVER=ON -DLLAMA_CURL=OFF \
     -DCMAKE_EXE_LINKER_FLAGS=-Wl,--allow-shlib-undefined \
-    && cmake --build /src/llama.cpp/build --target llama-server llama-fit-params --parallel "$BUILD_JOBS" \
+    -DCMAKE_PROJECT_INCLUDE=/src/pd-server-fit-params/inject.cmake \
+    && cmake --build /src/llama.cpp/build --target llama-server llama-fit-params pd-server-fit-params --parallel "$BUILD_JOBS" \
     && mkdir -p /opt/llama/bin /opt/llama/lib \
     && cp /src/llama.cpp/build/bin/llama-server /opt/llama/bin/ \
     && cp /src/llama.cpp/build/bin/llama-fit-params /opt/llama/bin/ \
+    && cp /src/llama.cpp/build/bin/pd-server-fit-params /opt/llama/bin/ \
     && find /src/llama.cpp/build -name '*.so*' \( -type f -o -type l \) -exec cp -P {} /opt/llama/lib/ \;
 
 FROM ghcr.io/astral-sh/uv:0.9.18 AS uv
