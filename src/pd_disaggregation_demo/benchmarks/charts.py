@@ -439,7 +439,8 @@ def phases(report: BenchmarkReport):
         template="plotly_white",
         title={"text": "Whole-request timeline", "font": {"size": 16}},
         margin={"l": 115, "r": 20, "t": 50, "b": 190},
-        legend=_bottom_legend(),
+        # Use the reserved figure margin, independent of the number of sample rows.
+        legend={**_bottom_legend(), "yref": "container", "y": 0.01, "yanchor": "bottom"},
         xaxis_title="Elapsed time (ms)",
         xaxis={"tickangle": 0, "nticks": 4, "automargin": True},
         yaxis={"autorange": "reversed", "automargin": True},

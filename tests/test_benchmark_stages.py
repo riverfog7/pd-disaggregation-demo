@@ -176,7 +176,14 @@ def test_charts_reserve_full_width_for_data_on_narrow_panels():
         assert figure.layout.autosize
         assert figure.layout.width is None
         assert figure.layout.legend.orientation == "h"
-        assert figure.layout.legend.y < 0
+        if figure.layout.legend.yref == "container":
+            legend_top = (
+                figure.layout.legend.y * figure.layout.height + figure.layout.legend.maxheight
+            )
+            assert figure.layout.legend.yanchor == "bottom"
+            assert legend_top + 45 < figure.layout.margin.b  # Tick labels and axis title.
+        else:
+            assert figure.layout.legend.y < 0
         assert figure.layout.legend.entrywidthmode == "fraction"
         assert figure.layout.legend.entrywidth == 0.5
         assert figure.layout.margin.b >= 190
