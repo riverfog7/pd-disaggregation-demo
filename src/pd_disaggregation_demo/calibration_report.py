@@ -55,14 +55,21 @@ def _placement(report: dict) -> str:
     profile = report.get("requested_profile", {})
     overrides = placement.get("tensor_overrides", [])
     output_overrides = []
+    attention_overrides = []
     for pattern in overrides:
         expression, _, buffer = pattern.partition("=")
         try:
             if buffer == "CPU" and re.search(expression, "output.weight"):
                 output_overrides.append(pattern)
+            if buffer == "CPU" and all(
+                re.search(expression, f"blk.0.{name}.weight")
+                for name in ("attn_q", "attn_k", "attn_v", "attn_output")
+            ):
+                attention_overrides.append(pattern)
         except re.error:
             pass
     output_cpu = placement.get("cpu_output_projection") or bool(output_overrides)
+    attention_cpu = placement.get("cpu_attention_projections") or bool(attention_overrides)
     suffix = ""
     projections = [
         name
@@ -74,8 +81,14 @@ def _placement(report: dict) -> str:
     elif projections:
         names = {"attn_qkv": "QKV", "attn_gate": "gate", "ssm_out": "SSM-out"}
         suffix = "+" + "/".join(names[name] for name in projections)
-    elif remaining := [pattern for pattern in overrides if pattern not in output_overrides]:
+    elif remaining := [
+        pattern
+        for pattern in overrides
+        if pattern not in output_overrides and pattern not in attention_overrides
+    ]:
         suffix = "+" + "; ".join(remaining)
+    if attention_cpu:
+        suffix += "+attention"
     if output_cpu:
         suffix += "+output"
     count = placement.get("cpu_ffn", profile.get("cpu_ffn", "?"))
@@ -300,6 +313,14 @@ def summarize_calibrations(inputs: Sequence[Path]) -> dict:
                 "error": candidate.get("error"),
                 "skip_reasons": candidate.get("preflight", {}).get("reasons", []),
             }
+            summary.update(
+                {
+                    key: candidate.get("requested_profile", {}).get(
+                        key, report.get("requested_profile", {}).get(key)
+                    )
+                    for key in ("threads", "gpu_layers", "batch_size")
+                }
+            )
             for key in rows[0] if rows else []:
                 if key not in {
                     "source_id",
@@ -379,7 +400,16 @@ def _html(summary: dict) -> str:
         source = sources[candidate["source_id"]]
         profile = tuple(
             candidate.get(key)
-            for key in ("model_id", "cache_type", "prompt_tokens", "context_size", "placement")
+            for key in (
+                "model_id",
+                "cache_type",
+                "prompt_tokens",
+                "context_size",
+                "placement",
+                "threads",
+                "gpu_layers",
+                "batch_size",
+            )
         )
         environment = source.get("environment", {})
         key = (

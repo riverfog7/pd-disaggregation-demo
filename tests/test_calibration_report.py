@@ -319,6 +319,9 @@ def test_comparable_reports_connect_sorted_points_but_never_mix_context(tmp_path
             "model_id": "qwen3.5-27b",
             "cache_type": "q8_0",
             "context_size": 8320,
+            "threads": 4,
+            "gpu_layers": -1,
+            "batch_size": 8192,
         },
     )
     raw["candidates"][0]["ubatch_size"] = 3840
@@ -356,6 +359,9 @@ def test_different_actual_ram_caps_and_prompt_hashes_are_separate_and_visible(
             "model_id": "qwen3.5-27b",
             "cache_type": "q8_0",
             "context_size": 8320,
+            "threads": 4,
+            "gpu_layers": -1,
+            "batch_size": 8192,
         },
     )
     raw["candidates"][0].update(prompt_sha256="a" * 64, cgroup_before={"limit_bytes": 8 * GiB})
@@ -379,3 +385,64 @@ def test_different_actual_ram_caps_and_prompt_hashes_are_separate_and_visible(
     document = output["html"].read_text()
     assert "8 GiB RAM cap" in document and "9 GiB RAM cap" in document
     assert document.index("9 GiB RAM cap") < document.index("<table>")
+
+
+@pytest.mark.parametrize("field,value", [("threads", 8), ("gpu_layers", 40), ("batch_size", 16384)])
+def test_execution_setting_difference_prevents_joining_curves(tmp_path, monkeypatch, field, value):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw.update(
+        prompt_tokens=8192,
+        requested_profile={
+            "model_id": "qwen3.5-27b",
+            "cache_type": "q8_0",
+            "context_size": 8320,
+            "threads": 4,
+            "gpu_layers": -1,
+            "batch_size": 8192,
+        },
+    )
+    source.write_text(json.dumps(raw))
+    second = tmp_path / "different-execution.json"
+    raw["candidates"][0]["requested_profile"] = {field: value}
+    second.write_text(json.dumps(raw))
+    figures = []
+    monkeypatch.setattr(
+        go.Figure,
+        "to_html",
+        lambda figure, **options: figures.append(figure.to_plotly_json()) or "<div></div>",
+    )
+    output = render_calibration_reports([source, second], tmp_path / "execution")
+    assert len(figures[0]["data"]) == 2
+    summary = json.loads(output["summary_json"].read_text())
+    assert summary["candidates"][0][field] != summary["candidates"][2][field]
+
+
+@pytest.mark.parametrize("attention_field", [True, False])
+def test_attention_label_is_independent_of_recurrent_and_vocabulary_output(
+    tmp_path, attention_field
+):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["placement"].update(
+        cpu_recurrent_projections=True,
+        cpu_output_projection=True,
+        cpu_attention_projections=attention_field,
+        tensor_overrides=[]
+        if attention_field
+        else [r"^blk\.[0-9]+\.(attn_q|attn_k|attn_v|attn_output)\.weight$=CPU"],
+    )
+    source.write_text(json.dumps(raw))
+    report = summarize_calibrations([source])
+    assert report["candidates"][0]["placement"] == "CUDA: FFN64+recurrent+attention+output"
+
+
+def test_attention_only_placement_uses_short_label(tmp_path):
+    source = save_report(tmp_path)
+    raw = json.loads(source.read_text())
+    raw["placement"].update(
+        cpu_attention_projections=True,
+        tensor_overrides=[r"^blk\.[0-9]+\.(attn_q|attn_k|attn_v|attn_output)\.weight$=CPU"],
+    )
+    source.write_text(json.dumps(raw))
+    assert summarize_calibrations([source])["candidates"][0]["placement"] == "CUDA: FFN64+attention"
