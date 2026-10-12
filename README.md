@@ -105,17 +105,19 @@ Reports are saved under `.pd-demo/reports/` as JSON, CSV and standalone HTML wit
 
 ## Recorded 4B comparison
 
-The [recorded benchmark](reports/benchmark-4b-q8-current-route.json) uses Qwen3.5-4B Q4_K_M with Q8 cache, 128 output tokens and five alternating pairs per size. All 30 requests passed the native cache-boundary and token-count checks. Times below are per-mode medians; ratios are paired geometric means, so they need not equal the ratio of those medians.
+The [2026-10-12 rerun](reports/benchmark-4b-q8-rerun-2026-10-12.json) uses the same canonical prompts as the [original run](reports/benchmark-4b-q8-current-route.json): Qwen3.5-4B Q4_K_M, Q8 cache, 128 output tokens and five alternating pairs per size. All 30 requests passed native cache-boundary and token-count checks. Times below are medians; ratios are paired geometric means and need not equal the ratio of those medians.
 
 | Prompt tokens | Local TTFT | Current-route split TTFT | Ideal 1Gbps modeled TTFT | Modeled paired speedup (95% CI) |
 |---:|---:|---:|---:|---:|
-| 1,024 | 2.27 s | 24.71 s | 1.86 s | 1.22× (1.15–1.29×) |
-| 4,096 | 9.79 s | 29.12 s | 3.96 s | 2.56× (2.32–2.91×) |
-| 8,192 | 21.16 s | 52.15 s | 7.18 s | 3.15× (2.95–3.36×) |
+| 1,024 | 2.19 s | 7.54 s | 1.86 s | 1.15× (1.06–1.24×) |
+| 4,096 | 9.11 s | 16.54 s | 4.15 s | 2.21× (2.17–2.26×) |
+| 8,192 | 18.97 s | 31.71 s | 7.31 s | 2.48× (2.30–2.67×) |
 
-The measured SSH route loses at every size because state transfer dominates. The modeled improvement is conditional on ideal 1Gbps payload throughput; it does not establish a measured LAN win. At 8k, median engine prefill rates were 388 tokens/s on Metal and 1,989 tokens/s on CUDA; decode remained on Metal (local 27.76, split 23.76 tokens/s).
+The current-route split loses at all three sizes, with transfer throughput medians of 91, 74 and 60 Mbit/s. At 8k, prefill reached 433 tokens/s on Metal and 1,985 tokens/s on CUDA; decode stayed on Metal at 29.97 tokens/s locally and 29.40 tokens/s after handoff. The ideal 1Gbps column is conditional on payload throughput and does not establish a measured gigabit LAN win. Compare complete intervals and per-trial timings in the reports; current SSH throughput and Mac processing rates changed between runs, so the comparison does not isolate the transport fix's effect.
 
-The dashboard History tab can load this saved run (`33c47212`) without rerunning inference. The full JSON, CSV and standalone HTML remain under `.pd-demo/reports/`. The measured contexts were 8,192 (1k/4k) and 8,320 requested / 8,448 effective (8k); batch 512, microbatch 128, four CPU threads. Larger prompt sizes remain available through admission, but were not measured in this run.
+The History tab can compare the rerun (`db03c2be`) with the original (`33c47212`) without rerunning inference. Full JSON, CSV and standalone HTML are under `.pd-demo/reports/`. Contexts were 8,192 (1k/4k) and 8,320 requested / 8,448 effective (8k); batch 512, microbatch 128, four CPU threads. Larger sizes are available through admission but were not measured in these runs.
+
+An [interrupted attempt](reports/transport-rerun-failure.json) is preserved separately: an idle HTTP connection closed during 4k warmup. Remote control requests now use fresh connections, with no mutation retries. The successful rerun uses that fix for every pair.
 
 ## Models, memory and configuration
 
