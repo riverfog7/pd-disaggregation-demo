@@ -1,15 +1,15 @@
 {
-  "created_at": "2026-10-11T07:44:51.747128+00:00",
-  "tested_code_revision": "1f5ce15e61ec3fac9a967c43b6c3c0de1b924380",
+  "created_at": "2026-10-12T04:21:51.211303+00:00",
+  "tested_code_revision": "30cb23f5f35e04d8819115514e2551ae99765e42",
   "branch": "codex/pd-demo",
-  "overall": "remote_live_validation_blocked_by_host_ram",
+  "overall": "working_demo_validated_on_metal_and_cuda",
   "automated": {
-    "pytest_passed": 123,
+    "pytest_passed": 210,
     "ruff_check": "passed",
     "ruff_format_check": "passed",
     "ty_src": "passed"
   },
-  "native_metal": {
+  "native_handoff": {
     "models": [
       "qwen3.5-0.8b",
       "qwen3.5-4b"
@@ -18,7 +18,11 @@
       "f16",
       "q8_0"
     ],
-    "same_prefix_continuation": "passed",
+    "backends": [
+      "Metal-to-Metal",
+      "CUDA-to-Metal"
+    ],
+    "same_saved_prefix_repeated_continuation": "passed",
     "long_context_prompt_tokens": 8192,
     "long_context_cache_n": 8191,
     "long_context_prompt_n": 1,
@@ -29,10 +33,13 @@
       "expired",
       "incompatible"
     ],
+    "cross_backend_numerical_result": "Tested fixtures also matched direct Metal text/tokens; universal cross-backend bit identity is not required or claimed.",
     "evidence": [
       "metal-acceptance.json",
       "metal-4b-acceptance.json",
-      "metal-8k-acceptance.json"
+      "metal-8k-acceptance.json",
+      "cuda-metal-acceptance.json",
+      "cuda-metal-4b-8k-acceptance.json"
     ]
   },
   "mac_live_checks": [
@@ -40,31 +47,86 @@
     "Python native runtime",
     "HTTP generation and text-only chat streaming",
     "CLI reuse of running HTTP API",
-    "local prefill and separate decode",
-    "HTTP cancellation and disconnected-stream reuse",
+    "local and CUDA prefill saved separately, then resumed by public CLI on Metal",
+    "HTTP cancellation and disconnected-stream recovery for local/split",
+    "native worker restart and remote outage/restart recovery",
     "occupied native port refusal",
-    "low-memory profile refusal with previous profile restored",
-    "native worker process restart",
-    "browser dashboard rendering and local chat",
-    "failed split benchmark recorded without local fallback"
+    "unsafe-memory refusal with previous profile restored",
+    "configuration cancellation returns409 and permits recovery",
+    "actual interrupted state download removes partial local and remote files",
+    "paired browser execution, saved-run comparison, phase table and HTML export",
+    "narrow-pane latency/throughput graphs render with separate panels and bottom legend",
+    "failed split requests remain failures without local fallback"
   ],
   "linux": {
     "engine_revision": "23b0202a189c44a54625aadcb37a946dd1d6278d",
-    "cuda_build": "CUDA compilation completed; final executable link failed in initial image. Upstream linker flag and persistent build cache fixes are committed but rebuild has not run.",
-    "source_transport": "Git push/fetch and exact-SHA deployment worktree verified",
-    "remote_source_revision": "1f5ce15e61ec3fac9a967c43b6c3c0de1b924380",
-    "build_ram_required_bytes": 3221225472,
-    "host_ram_available_bytes": 2758336512,
-    "worker_08b_ram_required_including_reserve_bytes": 3324542976,
-    "unrelated_workloads_stopped": false
+    "cuda_version": "12.8.1",
+    "cuda_architecture": "SM75",
+    "gpu": "NVIDIA GeForce RTX2080",
+    "container_launch_and_inference": "passed",
+    "source_transport": "Git push/fetch and exact-SHA deployment worktrees",
+    "docker_cli_start_status_stop": "passed",
+    "occupied_port_refusal_before_build": "passed",
+    "rollback_round_trip": "passed",
+    "bounded_persistent_build_cache": "working",
+    "unrelated_workloads_modified": false,
+    "evidence": [
+      "linux-deployment-acceptance.json",
+      "api-lifecycle.json",
+      "transfer-cancel.json",
+      "cuda-admission-refusal.json",
+      "configure-cancel.json",
+      "cli-separate-operations.json"
+    ]
   },
-  "pending_live_checks": [
-    "Docker worker launch and GPU inference",
-    "CUDA-to-Metal F16 and Q8 state handoff",
-    "interrupted network state transfer and recovery",
-    "successful paired browser and CLI benchmarks",
-    "live deployment rollback",
-    "direct gigabit LAN measurement and paired TTFT confidence interval"
+  "benchmark": {
+    "report": "benchmark-4b-q8-current-route.json",
+    "run_id": "33c472121044440792124047478e0733",
+    "measured_code_revision": "b750dc900470250cefd086087f6f25e90a7a3b74",
+    "model": "qwen3.5-4b",
+    "cache": "q8_0",
+    "prompt_tokens": [
+      1024,
+      4096,
+      8192
+    ],
+    "output_tokens": 128,
+    "paired_repeats": 5,
+    "successful_measured_requests": 30,
+    "failed_or_skipped": 0,
+    "state_boundary_checks": "all passed",
+    "actual_route": "gpu_home SSH",
+    "measured_supported_win": false,
+    "modeled_link_mbps": 1000,
+    "modeled_link_formula": "split TTFT - measured transfer_ms + state_bytes /125000000 *1000",
+    "modeled_link_is_actual_measurement": false,
+    "projection_recomputed_independently": true
+  },
+  "limitations": [
+    "9B profile has not been exercised on real hardware.",
+    "27B CPU-FFN placement remains uncalibrated and can be conservatively refused; no safe27B streaming claim.",
+    "16k,32k and64k benchmark paths are implemented with admission but were not part of this hardware performance run.",
+    "The1Gbps comparison is an optimistic payload-only model; no real gigabit LAN speedup is claimed.",
+    "Memory samples may miss short transients; missing Metal GPU telemetry is not treated as zero."
   ],
-  "performance_claim": "No split TTFT speedup established; intended performance acceptance requires supplied LAN route."
+  "performance_claim": "Current-route split TTFT loses at all three measured sizes. Replacing only transfer duration with ideal1Gbps payload time yields lower modeled TTFT; paired confidence intervals describe the recorded sample variation under that fixed assumption.",
+  "browser_validation": {
+    "date": "2026-10-12",
+    "ui_run_id": "9e57bd840dcf4e2c83a72606d158c473",
+    "model": "qwen3.5-4b",
+    "cache": "q8_0",
+    "prompt_tokens": 64,
+    "output_tokens": 8,
+    "paired_repeats": 1,
+    "completed_requests": 2,
+    "tested_width_px": 535,
+    "observed": [
+      "actual prompt-size ticks on saved1k/4k/8k run",
+      "stacked transfer panels",
+      "memory graph with wrapped scrollable legend",
+      "saved-run comparison with exact stage table and whole-request timeline"
+    ],
+    "comparison_image": ".pd-demo/validation/final-comparison.png",
+    "large_benchmark_samples_unchanged": true
+  }
 }

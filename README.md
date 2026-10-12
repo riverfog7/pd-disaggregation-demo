@@ -33,7 +33,7 @@ uv run pd-demo status linux
 uv run pd-demo stop linux
 ```
 
-The 4B profile is the normal application default. The 0.8B commands above fit the currently constrained `gpu_home` more easily. Admission reports required and available bytes; choosing a larger model does not override it. A running worker can switch only to models already fetched into its read-only model mount. See [deployment details](deployment/README.md) for asset prefetch, rollback, container budgets and troubleshooting.
+The 4B profile is the normal application default and has passed CUDA-to-Metal validation on `gpu_home`. The 0.8B commands above provide a quicker correctness check. Admission reports required and available bytes; choosing a larger model does not override it. A running worker can switch only to models already fetched into its read-only model mount. See [deployment details](deployment/README.md) for asset prefetch, rollback, container budgets and troubleshooting.
 
 ## Commands and separate operations
 
@@ -93,13 +93,29 @@ asyncio.run(main())
 
 The Mac tokenizes once. Remote prefill evaluates the first **N−1 tokens**, samples and discards one token, then saves native state. The client streams and hashes the state file, restores it on Metal, evaluates the final prompt token and starts decoding. Both the native saved/restored count and completion timings must prove **`cache_n=N−1`, `prompt_n=1`**. A silent full re-prefill is an error.
 
-TTFT uses the Mac monotonic clock through the first generated token, including handoff and final evaluation. Metadata-only chunks do not count. Engine prefill/decode rates are separate from client-observed decode rates. Split transfer does not inherently accelerate Mac decoding. The timeline shows measured components; protocol overhead can leave a residual relative to total TTFT.
+TTFT uses the Mac monotonic clock through the first generated token, including handoff and final evaluation. Metadata-only chunks do not count. Engine prefill/decode rates are separate from client-observed decode rates. Split transfer does not inherently accelerate Mac decoding. A stage table compares tokenization, prefill, save, transfer, restore, final-token evaluation and unattributed overhead for the same local/split pair. The whole-request timeline marks the first token and then shows the remaining client elapsed time. Native decode timing is shown separately because it overlaps that interval. Graphs use vertical panels, actual prompt-size axis labels and wrapping legends for narrow windows. Transfer and memory views use the same responsive layout; full memory metric names remain in hover details.
 
 The default sweep is 1k, 4k, 8k, 16k and 32k input tokens, 128 output tokens and five paired repeats, alternating local/split order. Enter 65536 in the dashboard to request 64k. Context is raised to cover prompt plus output; unsafe sizes are explicitly skipped. Canonical token preparation is recorded separately from paired TTFT, so both sides receive identical IDs. Weights are warmed, prompt caches are empty, and startup is reported separately. No cold-disk claim is made.
 
 Speedup is the geometric mean of within-pair local/split TTFT ratios, with a seeded paired bootstrap 95% interval. A supported win requires its lower bound to exceed 1. Results also show losses. Five repeats do not establish reliable p95 latency. F16 and Q8 results are separate experiments. Sampled memory peaks include the interval and sample count and can miss shorter transients; unavailable GPU measurements remain unavailable.
 
-Reports are saved under `.pd-demo/reports/` as JSON, CSV and standalone HTML with embedded Plotly. The dashboard supports history comparison and downloads. Keep large reports outside Git; `reports/` contains compact acceptance evidence only.
+Results also include an explicitly modeled **ideal 1Gbps** comparison: `measured split TTFT − measured transfer time + state bytes / 125,000,000 × 1000` milliseconds. All other observed overhead remains. This optimistic payload-only replacement omits framing and any hashing/disk work included in the replaced transfer timer; it is not a measured gigabit LAN result. Its paired ratio and confidence interval describe variability in the recorded samples under that assumption, not uncertainty in network performance. Modeled results never set the measured `supported_win` flag.
+
+Reports are saved under `.pd-demo/reports/` as JSON, CSV and standalone HTML with embedded Plotly. The dashboard supports history comparison and downloads. Selecting saved runs also shows the most recent selected run’s exact stage table, whole-request timeline, and ideal 1Gbps projection. Keep large reports outside Git; `reports/` contains compact acceptance and benchmark evidence.
+
+## Recorded 4B comparison
+
+The [recorded benchmark](reports/benchmark-4b-q8-current-route.json) uses Qwen3.5-4B Q4_K_M with Q8 cache, 128 output tokens and five alternating pairs per size. All 30 requests passed the native cache-boundary and token-count checks. Times below are per-mode medians; ratios are paired geometric means, so they need not equal the ratio of those medians.
+
+| Prompt tokens | Local TTFT | Current-route split TTFT | Ideal 1Gbps modeled TTFT | Modeled paired speedup (95% CI) |
+|---:|---:|---:|---:|---:|
+| 1,024 | 2.27 s | 24.71 s | 1.86 s | 1.22× (1.15–1.29×) |
+| 4,096 | 9.79 s | 29.12 s | 3.96 s | 2.56× (2.32–2.91×) |
+| 8,192 | 21.16 s | 52.15 s | 7.18 s | 3.15× (2.95–3.36×) |
+
+The measured SSH route loses at every size because state transfer dominates. The modeled improvement is conditional on ideal 1Gbps payload throughput; it does not establish a measured LAN win. At 8k, median engine prefill rates were 388 tokens/s on Metal and 1,989 tokens/s on CUDA; decode remained on Metal (local 27.76, split 23.76 tokens/s).
+
+The dashboard History tab can load this saved run (`33c47212`) without rerunning inference. The full JSON, CSV and standalone HTML remain under `.pd-demo/reports/`. The measured contexts were 8,192 (1k/4k) and 8,320 requested / 8,448 effective (8k); batch 512, microbatch 128, four CPU threads. Larger prompt sizes remain available through admission, but were not measured in this run.
 
 ## Models, memory and configuration
 
@@ -135,11 +151,11 @@ uv run python scripts/validate_handoff.py --engine-port 8181 \
   --worker-url http://127.0.0.1:8090 --output .pd-demo/cuda-metal-acceptance.json
 ```
 
-[Metal acceptance evidence](reports/metal-acceptance.json), [4B checks](reports/metal-4b-acceptance.json), and [8k-token checks](reports/metal-8k-acceptance.json) record actual F16 and Q8 same-prefix continuations and artifact rejection/recovery. The hardware script fails on inconsistent same-backend continuations; CUDA/Metal numerical differences remain recorded observations. Unit/integration tests additionally use fake native/worker servers for failures, cancellation and deployment command validation. Cross-machine and browser verification results are recorded separately as they complete.
+[Metal acceptance evidence](reports/metal-acceptance.json), [4B checks](reports/metal-4b-acceptance.json), and [8k-token checks](reports/metal-8k-acceptance.json) record actual F16 and Q8 same-prefix continuations and artifact rejection/recovery. [CUDA-to-Metal checks](reports/cuda-metal-acceptance.json) and [4B at 8k tokens](reports/cuda-metal-4b-8k-acceptance.json) passed on both cache types, including exact cache boundaries, repeated restoration and all five artifact rejection/recovery cases. The hardware script fails on inconsistent same-backend continuations; CUDA/Metal numerical differences remain recorded observations. Unit/integration tests additionally use fake native/worker servers for failures, cancellation and deployment command validation.
 
-Performance acceptance needs the direct gigabit LAN route. The existing Internet SSH route measured around 2.2 MB/s during planning and is useful for functionality checks, not for claiming the intended LAN speedup.
+Benchmarks use the current SSH route and report its observed state-transfer throughput. The 1Gbps model lets you compare the same measurements under an ideal link assumption without presenting that assumption as a measured LAN speedup.
 
-The [verification status](reports/verification-status.json) distinguishes executed checks from pending ones. As of 2026-10-11, 123 automated tests and native Metal checks pass. The initial Docker build compiled CUDA but failed at executable linking; the pinned upstream linker flag and persistent compilation cache are now included. The rebuild was refused with 2.57 GiB remote RAM available versus 3.00 GiB required. CUDA-to-Metal, successful paired browser runs, and live rollback are still unverified. Free remote RAM before retrying deployment; no split speedup has been established.
+The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 210 automated tests pass. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware and 27B streaming remains uncalibrated; the 1Gbps comparison remains a model.
 
 ## Layout and source workflow
 
