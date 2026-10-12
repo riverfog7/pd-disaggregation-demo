@@ -239,6 +239,10 @@ def check_admission(
         disk_reserve_bytes=disk_reserve,
     )
     reasons = []
+    metal_overcommit = backend == "metal" and settings.allow_metal_memory_overcommit
+    if metal_overcommit:
+        # Explicit local experiment opt-in; disk checks and all CUDA guards remain active.
+        budgets["metal_memory_admission_overridden"] = 1
     cgroup_available = _cgroup_available() if resources.platform == "linux" else None
     if cgroup_available is not None:
         budgets["cgroup_available_bytes"] = cgroup_available
@@ -247,7 +251,7 @@ def check_admission(
                 f"Worker cgroup has {cgroup_available:,} bytes available; "
                 f"load requires {ram:,} bytes without using swap"
             )
-    if ram + ram_reserve > resources.ram_available_bytes:
+    if not metal_overcommit and ram + ram_reserve > resources.ram_available_bytes:
         reasons.append(
             f"RAM requires {ram + ram_reserve:,} bytes including reserve; "
             f"{resources.ram_available_bytes:,} available (swap is not capacity)"
@@ -257,7 +261,7 @@ def check_admission(
             f"Disk requires {disk + disk_reserve:,} bytes including reserve; "
             f"{resources.disk_free_bytes:,} free"
         )
-    if backend == "metal":
+    if backend == "metal" and not metal_overcommit:
         recommended = resources.metal_recommended_bytes
         if recommended is None:
             reasons.append(

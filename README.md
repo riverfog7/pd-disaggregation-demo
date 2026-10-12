@@ -161,6 +161,11 @@ The 27B profile exposes existing `--cpu-ffn` placement in Linux launch/deploy an
 
 For the separate opt-in 27B experiment, see the [guarded calibration and report workflow](docs/calibration.md).
 
+An explicitly authorized Mac experiment can set `PDD_ALLOW_METAL_MEMORY_OVERCOMMIT=true`
+to skip local RAM and Metal working-set admission. This opt-in is recorded in admission
+metadata, retains disk checks and memory telemetry, and has no effect on CUDA safeguards.
+Default launches keep the normal Mac reserve.
+
 Settings use the `PDD_` environment prefix or `.env`. Useful values are `PDD_REMOTE_URL`, `PDD_REMOTE_SSH_HOST`, `PDD_LAN_SSH_HOST`, `PDD_REMOTE_REPO`, `PDD_PORT`, `PDD_ENGINE_PORT`, `PDD_CACHE_DIR`, and `PDD_WORK_DIR`. Cache defaults to `~/.cache/pd-disaggregation-demo`; run state defaults to `.pd-demo`. The native engine is pinned, has one slot, and disables auxiliary RAM prompt cache, checkpoints, speculative decoding and context shift.
 
 ## Validation

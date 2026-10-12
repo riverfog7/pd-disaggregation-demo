@@ -68,3 +68,37 @@ def test_metal_working_set_admission_separate_from_available_ram(monkeypatch, tm
     assert resources.check_admission(
         Settings(work_dir=tmp_path), RuntimeProfile(), model, "metal"
     ).allowed
+
+
+def test_explicit_metal_overcommit_preserves_disk_and_cuda_guards(monkeypatch, tmp_path):
+    from pd_disaggregation_demo.catalog import get_model
+
+    snapshot = ResourceSnapshot(
+        platform="darwin",
+        cpu_count=14,
+        ram_total_bytes=48 * resources.GiB,
+        ram_available_bytes=resources.GiB,
+        disk_free_bytes=100 * resources.GiB,
+        metal_recommended_bytes=resources.GiB,
+        gpu_free_bytes=resources.GiB,
+    )
+    monkeypatch.setattr(resources, "capture_resources", lambda _: snapshot)
+    monkeypatch.setattr(resources, "_cgroup_available", lambda: None)
+    profile = RuntimeProfile(model_id="qwen3.5-27b")
+    model = get_model(profile.model_id)
+    settings = Settings(work_dir=tmp_path, allow_metal_memory_overcommit=True)
+    allowed = resources.check_admission(settings, profile, model, "metal")
+    assert allowed.allowed
+    assert allowed.budgets["metal_memory_admission_overridden"] == 1
+    assert not resources.check_admission(
+        Settings(work_dir=tmp_path), profile, model, "metal"
+    ).allowed
+    cuda = resources.check_admission(settings, profile, model, "cuda")
+    assert not cuda.allowed
+    assert "metal_memory_admission_overridden" not in cuda.budgets
+    assert any("RAM requires" in reason for reason in cuda.reasons)
+    assert any("VRAM requires" in reason for reason in cuda.reasons)
+    snapshot.disk_free_bytes = resources.GiB
+    disk = resources.check_admission(settings, profile, model, "metal")
+    assert not disk.allowed
+    assert all("Disk requires" in reason for reason in disk.reasons)

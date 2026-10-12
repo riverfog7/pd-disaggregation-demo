@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     disk_reserve_bytes: int = 20 * 1024**3
     build_jobs: int = 2
     skip_admission: bool = False
+    allow_metal_memory_overcommit: bool = False
 
     @property
     def models_dir(self) -> Path:
