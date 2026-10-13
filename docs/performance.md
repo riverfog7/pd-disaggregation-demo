@@ -71,4 +71,3 @@ uv run scripts/render_readme_performance.py
 ```
 
 The script declares its own plotting dependency; it does not change the demo's runtime dependencies. When adding results, retain the measurement date, settings, paired uncertainty and distinction between measured and modeled outcomes.
-
