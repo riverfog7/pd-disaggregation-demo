@@ -4,6 +4,69 @@ Compare **Mac prefill → Mac decode** with **Linux CUDA prefill → native stat
 
 The inference engine is unmodified [llama.cpp at `23b0202a189c44a54625aadcb37a946dd1d6278d`](https://github.com/ggml-org/llama.cpp/tree/23b0202a189c44a54625aadcb37a946dd1d6278d). Both machines use byte-identical pinned Q4_K_M GGUF files. Native slot serialization transfers attention **and recurrent** state for Qwen3.5; there is no cache tensor conversion or custom inference kernel.
 
+## Performance and progress
+
+**Report updated: 2026-10-13 · latest hardware measurements: 2026-10-12.**
+
+**At 65,535 prompt tokens, remote prefill reduced 4B time to first token from 386.08 s to 151.12 s: a measured 2.52× paired speedup.** At 1k–8k tokens, split execution was slower on the tested SSH route. Decode runs on the Mac in both cases and did not get faster.
+
+![Measured 4B TTFT speedups with 95% paired confidence intervals: 0.25x at 1,024 tokens, 0.53x at 4,096, 0.62x at 8,192, and 2.52x at 65,535. The 65k experiment used a larger microbatch.](docs/assets/performance-4b.png)
+
+### Measured results
+
+Qwen3.5-4B **Q4_K_M**, **Q8 cache**, FlashAttention, **128 generated tokens**. TTFT means time to the first generated token and includes state export, transfer, restore and final prompt evaluation in split mode.
+
+| Prompt tokens | Paired repeats | Mac local TTFT | Split TTFT | Paired speedup · 95% CI | Observed result |
+|---:|---:|---:|---:|---:|---|
+| 1,024 | 5 | 2.19 s | 7.54 s | 0.25× · 0.21–0.31× | Split slower |
+| 4,096 | 5 | 9.11 s | 16.54 s | 0.53× · 0.41–0.66× | Split slower |
+| 8,192 | 5 | 18.97 s | 31.71 s | 0.62× · 0.50–0.77× | Split slower |
+| **65,535** | **4** | **386.08 s** | **151.12 s** | **2.52× · 2.46–2.58×** | **Split faster** |
+
+Times are medians; speedup is the geometric mean of **within-pair** local/split ratios, so it need not equal the ratio of the medians. These are separate experiments: 1k–8k used batch/microbatch **512/128**; 65k used **65,535/2,048** on both machines. They do not isolate a prompt-length crossover. All pairs alternated execution order, used identical canonical token IDs, and began with empty prompt caches. Warmup used 32 tokens per mode, not a full-length prompt. Four or five pairs do not establish reliable tail latency.
+
+At 65k, native throughput was:
+
+| Metric · median | Mac local | CUDA prefill → Mac decode |
+|---|---:|---:|
+| Prefill | 169.8 tokens/s | 1,727.8 tokens/s |
+| Decode | 19.08 tokens/s | 17.89 tokens/s |
+
+Sources: [1k–8k paired results](reports/benchmark-4b-q8-rerun-2026-10-12.json), [65k paired results and per-request timings](reports/benchmark-4b-65k-2026-10-12.json). Every measured split request restored exactly **N−1** cached tokens and evaluated **one** final prompt token on the Mac. All eight 65k continuations matched in this fixture; universal CUDA/Metal bit identity is not claimed.
+
+### Test machines and transfer cost
+
+| | Mac: local baseline and decode | Linux: remote prefill |
+|---|---|---|
+| Compute | Apple M4 Pro · 14 CPU cores | RTX 2080 · Intel i7-8750H |
+| Memory | 48 GiB unified memory | 8 GiB VRAM · 15.5 GiB host RAM |
+| Runtime | Native Metal | CUDA 12.8 in Docker · SM75 |
+| Inference engine | Pinned llama.cpp · one slot | Same pinned llama.cpp · one slot |
+
+**Transfer is the main remaining cost at 65k:** the native state was **1.195 GB** and took a median **105.87 s** to transfer, compared with **37.96 s** for CUDA prefill. State export took **3.17 s**, and Mac restore **0.37 s**. These are separate stage medians; the dashboard and [detailed report](docs/performance.md) retain each request's complete timing accounting.
+
+The [separate link probe](reports/link-throughput-2026-10-12.json) measured median **73.50 Mbit/s GPU host → Mac** and **177.27 Mbit/s Mac → GPU host**, using three verified 64 MiB transfers per direction. These wall rates include fresh SSH setup and hashing. The larger application state transfers reached a median **90.33 Mbit/s**, amortizing setup costs.
+
+The 65k CUDA worker ran with a **10.25 GiB RAM cap**, container swap disabled, and continuous memory guards. Observed free-memory minima were **3.04 GiB VRAM** and **11.54 GiB host RAM**; no OOM or watchdog failure occurred. Mac memory admission was explicitly waived for this experiment. These observations describe this tested configuration, not a guarantee for other workloads.
+
+### Ideal 1Gbps projection — not a measurement
+
+Replacing only measured transfer time with `state bytes / 125,000,000` seconds gives a **modeled 65k split TTFT of 54.78 s**, or **6.97× paired speedup**. All other observed overhead stays fixed. This optimistic payload-only estimate omits framing and the hashing/disk work inside the replaced timer. A real gigabit LAN result is still unmeasured; the **measured** improvement on the current route is **2.52×**.
+
+### Progress snapshot
+
+| Area | Verified progress | Remaining work |
+|---|---|---|
+| CUDA → Metal state handoff | 0.8B and 4B tested with F16 and Q8, including recurrent state and artifact rejection/recovery | More models and numerical fixtures |
+| 4B performance | Paired runs at 1k, 4k, 8k and 65,535 tokens; long-context Q8 handoff passed | Same-settings context sweep and real gigabit LAN measurement |
+| 27B memory-constrained prefill | CUDA prefill/export measured at 8k, 16k and 32k; **224 tokens/s** at 32k with microbatch 12,288 | Mac 27B and end-to-end split TTFT are **unmeasured** |
+| Demo interfaces | CLI, Python API, HTTP streaming, benchmark UI, phase timings and JSON/CSV/HTML exports exercised | Broader hardware coverage; 9B has not been tested |
+| Reliability and tooling | Memory guards, cancellation, interrupted transfer, restart and Git/Docker rollback exercised; 344 automated tests passed at the measurement revision, followed by 67 focused layout/benchmark checks | Further platform and workload coverage |
+
+This is a working benchmark demo. The 27B calibration is **CUDA-only evidence**, not a demonstrated 27B split speedup. Increasing its 32k microbatch from 8,192 to 12,288 improved observed prefill throughput by 13.2%, but storage waits remained significant; see the [27B calibration details](docs/performance.md#recorded-27b-calibration).
+
+[Detailed measurements and limitations](docs/performance.md) · [Verification record](reports/verification-status.json) · [Reproduce the 65k experiment](docs/long-context-benchmarks.md) · [Run the demo](#run-the-demo)
+
 ## Run the demo
 
 Requirements: `uv`, Python 3.13 (uv can install it), Git, CMake and Xcode command-line tools on the Mac; Docker Compose, Buildx and NVIDIA CDI on Linux. Source deployment uses Git over SSH. The Linux inference runtime lives in Docker.
@@ -103,64 +166,6 @@ Results also include an explicitly modeled **ideal 1Gbps** comparison: `measured
 
 Reports are saved under `.pd-demo/reports/` as JSON, CSV and standalone HTML with embedded Plotly. The dashboard supports history comparison and downloads. Selecting saved runs also shows the most recent selected run’s exact stage table, whole-request timeline, and ideal 1Gbps projection. Keep large reports outside Git; `reports/` contains compact acceptance and benchmark evidence.
 
-## Recorded 4B 65k comparison
-
-The [65,535-token experiment](reports/benchmark-4b-65k-2026-10-12.json) completed **four alternating local/split pairs** with Q4_K_M weights, Q8 cache, FlashAttention and 128 generated tokens. Both engines used microbatch 2,048, logical batch 65,535 and four CPU threads; requested context was 65,663, rounded natively to 65,792. Every request passed its exact token/cache boundary checks, and all eight continuations matched in this fixture. The 32-token warmup was separate; this was not a full-length warmup or a cold-disk test.
-
-| Metric (median) | Mac local | CUDA prefill → Mac decode |
-|---|---:|---:|
-| TTFT | 386.08 s | 151.12 s |
-| Native prefill throughput | 169.8 tokens/s | 1,727.8 tokens/s |
-| Native decode throughput | 19.08 tokens/s | 17.89 tokens/s |
-| State transfer | — | 1.195 GB in 105.87 s |
-
-The measured paired TTFT speedup was **2.522× (95% paired bootstrap interval 2.462–2.578×)** on the existing `gpu_home` SSH route. This supports a win for this four-pair experiment, not a universal speedup or reliable tail-latency estimate. Split prefill took a median 37.96 seconds, state export 3.17 seconds, and restore 0.37 seconds. Transfer remained the largest cost, at a median 90.33 Mbit/s. Stage medians are descriptive; the UI's exact-pair table provides additive timing accounting. Decode still ran on the Mac and did not improve.
-
-The separate [bidirectional link probe](reports/link-throughput-2026-10-12.json) used three verified 64 MiB transfers each way: median **73.50 Mbit/s (9.19 MB/s) GPU host → Mac**, and **177.27 Mbit/s (22.16 MB/s) Mac → GPU host**. These wall rates include fresh SSH setup and hashing, not only physical network transfer. The actual larger state transfer amortized that setup. Replacing only the measured state-transfer time with ideal 1Gbps payload time gives a **modeled 54.78-second split TTFT and 6.972× paired speedup**; this is not a measured gigabit LAN result.
-
-The guarded CUDA container had a 10.25 GiB RAM cap and no swap, with at least **3.04 GiB GPU free** and **11.54 GiB host MemAvailable** observed. No cgroup OOM or watchdog failure occurred. Mac admission was explicitly waived for this run. The user shortened the original five-pair run to four complete pairs; the runner's raw cancellation record and next-dispatch cancellation are retained separately, and no fifth-pair timing is included. The requested 27B paired run was not started after the user limited scope to 4B.
-
-Use the [long-context guide](docs/long-context-benchmarks.md) to reproduce the setup. The History tab lists this run as `a148fe49`; full JSON, CSV and standalone HTML, including the stage table and all eight timelines, are under `.pd-demo/reports/`. Normal 4B services were restored after measurement.
-
-## Earlier 4B 1k–8k comparison
-
-The [2026-10-12 rerun](reports/benchmark-4b-q8-rerun-2026-10-12.json) uses the same canonical prompts as the [original run](reports/benchmark-4b-q8-current-route.json): Qwen3.5-4B Q4_K_M, Q8 cache, 128 output tokens and five alternating pairs per size. All 30 requests passed native cache-boundary and token-count checks. Times below are medians; ratios are paired geometric means and need not equal the ratio of those medians.
-
-| Prompt tokens | Local TTFT | Current-route split TTFT | Ideal 1Gbps modeled TTFT | Modeled paired speedup (95% CI) |
-|---:|---:|---:|---:|---:|
-| 1,024 | 2.19 s | 7.54 s | 1.86 s | 1.15× (1.06–1.24×) |
-| 4,096 | 9.11 s | 16.54 s | 4.15 s | 2.21× (2.17–2.26×) |
-| 8,192 | 18.97 s | 31.71 s | 7.31 s | 2.48× (2.30–2.67×) |
-
-The current-route split loses at all three sizes, with transfer throughput medians of 91, 74 and 60 Mbit/s. At 8k, prefill reached 433 tokens/s on Metal and 1,985 tokens/s on CUDA; decode stayed on Metal at 29.97 tokens/s locally and 29.40 tokens/s after handoff. The ideal 1Gbps column is conditional on payload throughput and does not establish a measured gigabit LAN win. Compare complete intervals and per-trial timings in the reports; current SSH throughput and Mac processing rates changed between runs, so the comparison does not isolate the transport fix's effect.
-
-The History tab can compare the rerun (`db03c2be`) with the original (`33c47212`) without rerunning inference. Full JSON, CSV and standalone HTML are under `.pd-demo/reports/`. Contexts were 8,192 (1k/4k) and 8,320 requested / 8,448 effective (8k); batch 512, microbatch 128, four CPU threads. Larger sizes are available through admission but were not measured in these runs.
-
-An [interrupted attempt](reports/transport-rerun-failure.json) is preserved separately: an idle HTTP connection closed during 4k warmup. Remote control requests now use fresh connections, with no mutation retries. The successful rerun uses that fix for every pair.
-
-## Recorded 27B calibration
-
-The [2026-10-12 calibration evidence](reports/calibration-27b-2026-10-12.json) records real Qwen3.5-27B Q4_K_M prefill and native state export on the RTX 2080. FlashAttention and Q8 cache were enabled. Every request began with an empty prompt cache and evaluated/saved exactly **N−1** tokens. These are native prefill timings; 27B Metal decode and end-to-end split TTFT have not been measured.
-
-| Canonical prompt | Microbatch | Measured repeats | Prefill median | Tokens/s median | Physical reads median | GPU activity median |
-|---:|---:|---:|---:|---:|---:|---:|
-| 8,192 | 2,048 | 1 | 99.14 s | 82.6 | 50.86 GB | 22.6% |
-| 8,192 | 3,840 | 1 | 87.94 s | 93.1 | 37.53 GB | 21.6% |
-| 8,192 | 8,192 | 3 | 32.32 s | 253.4 | 11.57 GB | 49.8% |
-| 16,384 | 16,384 | 3 | 58.46 s | 280.2 | 14.00 GB | 59.3% |
-| 32,768 | 8,192 | 2 | 165.88 s | 197.8 | 54.75 GB | 46.1% |
-| 32,768 | 12,288 | 2 | 146.34 s | 224.0 | 41.94 GB | 52.4% |
-
-The two **32k** configurations share the same prompt IDs, image/source revision, 10.75 GiB Docker RAM cap, four CPU threads and CPU weight placement. Increasing microbatch from 8,192 to 12,288 improved median throughput by **13.2%**, reduced prefill time by **11.8%**, and reduced physical reads by **23.4%** in this run. It changes four native prompt chunks into three. The 12,288 case retained at least **1.58 GiB GPU free memory** and **9.93 GiB host MemAvailable**; both candidates completed with zero cgroup OOM events and a clean process exit. Repetitions were sequential, not randomized; two samples per candidate do not establish a confidence interval or a universal optimum.
-
-GPU activity, disk reads and pressure cover the **whole prefill/export trial**, not isolated kernels. Median full I/O stall time fell from 31.1 to 25.3 seconds, but GPU activity remained around 52%. Storage waits remain significant; these observations do not attribute every idle interval to storage rather than CPU, PCIe or synchronization.
-
-The 8k rows use CPU FFN and recurrent-projection weights with an 8 GiB cap. The 16k/32k rows additionally put attention/output projection weights on CPU, using 9.25/10.75 GiB caps. Do not treat comparisons across those prompt lengths as changes to microbatch alone. The 16k/16,384 run also completed cleanly, with at least 1.07 GiB GPU free. A 65,535-token probe rejected the tested 10,240–16,384 microbatches under the VRAM reserve; its 8,192 warmup was intentionally cancelled when the experiment switched to 32k, so no completed 65k timing is claimed.
-
-Linux mmap already supplies RAM file caching. In a separate identical 8k-profile comparison, increasing the container cap from 8 to 9.25 GiB increased sampled charged file-cache peaks from about 7.34 to 8.59 GiB, but prefill medians were 32.32 and 32.68 seconds: no observed gain in that comparison. At 32k the sampled charged file cache reached 9.75–9.94 GiB. These counters include other files and do not measure a permanently retained weight subset; sequential scans can evict and reread weights. Container swap was disabled; host swap activity is recorded separately.
-
-The earlier 8k/8,192 runs completed their inference trials but exited 139 during GPU telemetry cleanup. Commit `5c5bb4c` fixes the sampler/NVML lifetime race; the later 16k and 32k runs exited 0. An earlier 3,072 candidate failed before inference on TCP port reuse, also fixed. Raw status and failures remain in the evidence rather than being counted as OOMs or hidden. The [calibration guide](docs/calibration.md) gives the guarded Docker recipe, timing definitions and report command. Full interactive graphs and CSVs are saved locally under `.pd-demo/reports/calibration-27b*`.
-
 ## Models, memory and configuration
 
 | Profile | Pinned GGUF size | Purpose |
@@ -176,7 +181,7 @@ Downloads use a single HTTP stream with bounded chunks, resumable partial files 
 
 Admission reserves at least 1 GiB VRAM, 2 GiB Linux host RAM, 6 GiB Mac unified RAM and 20 GiB disk beyond estimated application needs. Weights, KV/recurrent state, compute and export/import buffers count toward the estimate. The Linux worker has equal Docker memory/swap limits and a watchdog that stops **only its own engine** after sustained reserve violations. `/configure` can recover it after pressure is resolved. It never kills unrelated processes.
 
-The 27B profile exposes existing `--cpu-ffn` placement in Linux launch/deploy and conservative microbatch controls. The opt-in calibration above validates specific CUDA prefill/export configurations on this 8 GiB GPU/16 GiB host. Ordinary worker admission remains conservative and can still refuse 27B; do not bypass it. Weight rereads can occur per microbatch, not once per whole prompt. Mac 27B admission was refused under the required 6 GiB reserve at the available-memory snapshot used for this experiment.
+The 27B profile exposes existing `--cpu-ffn` placement in Linux launch/deploy and conservative microbatch controls. The [recorded calibration](docs/performance.md#recorded-27b-calibration) validates specific CUDA prefill/export configurations on this 8 GiB GPU/16 GiB host. Ordinary worker admission remains conservative and can still refuse 27B; do not bypass it. Weight rereads can occur per microbatch, not once per whole prompt. Mac 27B admission was refused under the required 6 GiB reserve at the available-memory snapshot used for this experiment.
 
 For the separate opt-in 27B experiment, see the [guarded calibration and report workflow](docs/calibration.md).
 
@@ -206,7 +211,7 @@ uv run python scripts/validate_handoff.py --engine-port 8181 \
 
 Benchmarks use the current SSH route and report its observed state-transfer throughput. The 1Gbps model lets you compare the same measurements under an ideal link assumption without presenting that assumption as a measured LAN speedup.
 
-The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 344 automated tests pass at the long-context measurement revision; focused benchmark checks also cover the subsequent timeline layout adjustment. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware; 27B CUDA prefill/export is calibrated as described above, while its cross-machine TTFT remains unmeasured. The 1Gbps comparison remains a model.
+The [verification status](reports/verification-status.json) distinguishes executed checks from unvalidated configurations. As of 2026-10-12, 344 automated tests pass at the long-context measurement revision; focused benchmark checks also cover the subsequent timeline layout adjustment. Native CUDA/Metal handoff, successful paired browser execution, HTTP cancellation/disconnection, interrupted state transfer, worker restart recovery, unsafe-memory refusal and CLI Linux launch/stop have been exercised. The CUDA image builds with the pinned upstream linker flag and reuses a bounded persistent compilation cache. The 9B profile remains untested on hardware; 27B CUDA prefill/export is calibrated in the [measurement details](docs/performance.md#recorded-27b-calibration), while its cross-machine TTFT remains unmeasured. The 1Gbps comparison remains a model.
 
 ## Layout and source workflow
 
